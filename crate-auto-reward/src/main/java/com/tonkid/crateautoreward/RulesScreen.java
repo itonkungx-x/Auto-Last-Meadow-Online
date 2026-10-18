@@ -32,6 +32,10 @@ public final class RulesScreen extends Screen {
     }
     @Override protected void init(){
         int x=left()+16,t=top(),w=contentWidth();
+        btn(ServerProfiles.instance().selected().equals("MMO")?"[ MMO ]":"MMO",
+            x+w-128,t+8,60,20,b->setProfile("MMO"));
+        btn(ServerProfiles.instance().selected().equals("SMP")?"[ SMP ]":"SMP",
+            x+w-64,t+8,60,20,b->setProfile("SMP"));
         pattern=this.addRenderableWidget(new EditBox(this.font,x,t+79,w*47/100-6,20,txt("คำที่ต้องการค้นหา")));
         rarity=this.addRenderableWidget(new EditBox(this.font,x+w*47/100,t+79,w*29/100-6,20,txt("Rarity")));
         weight=this.addRenderableWidget(new EditBox(this.font,x+w*76/100,t+79,w*24/100,20,txt("Weight")));
@@ -55,13 +59,8 @@ public final class RulesScreen extends Screen {
         });
         btn("↑",x,t+132,33,20,b->shift(-1));
         btn("↓",x+38,t+132,33,20,b->shift(1));
-        btn("ยกเลิกการเลือก",x+76,t+132,w*42/100-76,20,b->{
+        btn("ยกเลิกการเลือก",x+76,t+132,w-76,20,b->{
             selected=-1;source="NAME";error=false;message="พร้อมเพิ่มกฎใหม่";rebuildWidgets();
-        });
-        btn("ซิงก์กฎไปเซิร์ฟเวอร์",x+w*43/100,t+132,w*57/100,20,b->{
-            config.save();
-            CrateAutoRewardClient.queueRuleSync(Minecraft.getInstance(),config);
-            error=false;message="กำลังซิงก์กฎ โปรดตรวจข้อความตอบกลับในแชตเซิร์ฟเวอร์";
         });
         int offset=page*5;
         for(int row=0;row<5;row++){
@@ -97,8 +96,7 @@ public final class RulesScreen extends Screen {
             if(mc.player==null){
                 error=true;message="ต้องเข้าเซิร์ฟเวอร์ก่อนเปิดกล่อง Preset";return;
             }
-            mc.gui.setScreen(null);
-            mc.player.connection.sendCommand("cratepreset");
+            mc.gui.setScreen(new PresetScreen(this));
         });
         btn("ตั้งปุ่มลัด",x+w*50/100,t+311,w*25/100-4,22,b->{
             config.save();
@@ -106,6 +104,10 @@ public final class RulesScreen extends Screen {
             mc.gui.setScreen(new KeyBindsScreen(this,mc.options));
         });
         btn("เสร็จสิ้น",x+w*75/100,t+311,w*25/100,22,b->onClose());
+    }
+    private void setProfile(String mode){
+        ServerProfiles.instance().select(mode);
+        Minecraft.getInstance().gui.setScreen(new RulesScreen(parent,RuleConfig.load()));
     }
     private void shift(int direction){
         if(selected<0 || selected>=config.rules.size()) {error=true;message="เลือกกฎก่อนจัดลำดับ";return;}
@@ -117,6 +119,9 @@ public final class RulesScreen extends Screen {
         rebuildWidgets();
     }
     private void save(){
+        if(!ServerProfiles.instance().hasSelection()){
+            error=true;message="กรุณาเลือก MMO หรือ SMP ก่อนบันทึกกฎ";return;
+        }
         String p=pattern.getValue().trim(),r=rarity.getValue().trim(),v=weight.getValue().trim();
         if(p.isEmpty() || r.isEmpty() || !RuleConfig.validWeight(v)){
             error=true;message="กรอกคำค้นหา Rarity และ Weight เป็นตัวเลข (เช่น 0.01)";return;
@@ -143,8 +148,8 @@ public final class RulesScreen extends Screen {
         super.extractRenderState(g,mx,my,dt);
         int x=left()+16,t=top(),w=contentWidth();
         g.text(font,"CRATE AUTO REWARD  •  26.3",x,t+11,ORANGE,true);
-        g.text(font,"ตั้งเรท / จัดกฎ / เปลี่ยนปุ่มลัด (รองรับโน้ตบุ๊ก)",x,t+29,WHITE,false);
-        g.text(font,"คำที่พบในชื่อ / Lore / Material",x,t+65,0xFFCDD5E0,false);
+        g.text(font,"โปรไฟล์: "+ServerProfiles.instance().selected()+" | "+ServerProfiles.address(),x,t+30,WHITE,false);
+        g.text(font,"ชื่อ / Lore / Material",x,t+65,0xFFCDD5E0,false);
         g.text(font,"Rarity ID",x+w*47/100,t+65,0xFFCDD5E0,false);
         g.text(font,"Weight",x+w*76/100,t+65,0xFFCDD5E0,false);
         g.text(font,"รายการกฎ — เรียงจากสำคัญมากไปน้อย",x,t+144,GOLD,false);
