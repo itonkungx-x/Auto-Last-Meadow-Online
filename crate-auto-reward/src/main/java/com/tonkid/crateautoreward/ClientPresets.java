@@ -14,7 +14,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
+
 
 public final class ClientPresets {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
@@ -115,7 +115,8 @@ public final class ClientPresets {
             boolean matches=false;
             for(int s=0;s<36;s++){
                 ItemStack held=mc.player.getInventory().getItem(s);
-                if(!held.isEmpty() && ItemStack.isSameItemSameComponents(held,encoded)){
+                if(!held.isEmpty() && held.getCount()==encoded.getCount() &&
+                    ItemStack.isSameItemSameComponents(held,encoded)){
                     matches=true;break;
                 }
             }
