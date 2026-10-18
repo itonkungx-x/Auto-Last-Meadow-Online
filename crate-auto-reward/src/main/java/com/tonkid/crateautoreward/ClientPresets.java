@@ -23,6 +23,8 @@ public final class ClientPresets {
         public List<String> itemData=new ArrayList<>();
         public List<String> labels=new ArrayList<>();
         public long savedTime=0;
+        public List<RuleConfig.Rule> rateRules=new ArrayList<>();
+        public boolean autoApplyRates=true;
     }
     private List<SavedPreset> presets=new ArrayList<>();
     private String activePreset="";
@@ -92,6 +94,10 @@ public final class ClientPresets {
         target.itemData=items;
         target.labels=labels;
         target.savedTime=System.currentTimeMillis();
+        RuleConfig now=RuleConfig.load();
+        target.rateRules=new ArrayList<>();
+        for(RuleConfig.Rule rule:now.rules)target.rateRules.add(rule.copy());
+        target.autoApplyRates=now.autoApplyRates;
         save();
         return items.size();
     }
