@@ -10,6 +10,8 @@ import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.AbstractWidget;
+import net.minecraft.client.gui.components.EditBox;
+import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.client.input.MouseButtonEvent;
@@ -28,13 +30,18 @@ import java.util.Locale;
 
 public final class CrateAutoRewardClient implements ClientModInitializer {
     private static final int ANVIL_SLOT = 42;
-    private enum Phase { OFF, NEXT, PICKUP, TYPE, RETURN }
+    private enum Phase { OFF, NEXT, PICKUP, TYPE, RETURN, OPTIONS, OPEN_WEIGHT, SET_WEIGHT, RETURN_OPTIONS, RETURN_LIST }
     private final ArrayDeque<ItemStack> pending = new ArrayDeque<>();
     private final List<ItemStack> seen = new ArrayList<>();
     private Phase phase = Phase.OFF;
     private int phaseTicks = 0, done = 0, skipped = 0, sourceSlot = -1;
     private ItemStack active = ItemStack.EMPTY;
-    private KeyMapping toggle, emergency;
+    private KeyMapping toggle, emergency, settingsKey;
+    private RuleConfig config = RuleConfig.load();
+    private RuleConfig.Rule currentRule;
+    private boolean[] prior = new boolean[36];
+    private boolean edited = false;
+    private int cycles = 0;
 
     @Override public void onInitializeClient() {
         toggle = KeyMappingHelper.registerKeyMapping(new KeyMapping(
@@ -43,19 +50,37 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         emergency = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.crateautoreward.stop", InputConstants.Type.KEYBOARD,
             InputConstants.KEY_F8, KeyMapping.Category.MISC));
+        settingsKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+            "key.crateautoreward.settings", InputConstants.Type.KEYBOARD,
+            InputConstants.KEY_F7, KeyMapping.Category.MISC));
         ScreenEvents.BEFORE_INIT.register((mc, screen, width, height) ->
             ScreenKeyboardEvents.beforeKeyPress(screen).register((s, key) -> {
-                if (emergency.matches(key)) stop(mc, "Stopped by F8.");
+                if (settingsKey.matches(key)) openSettings(mc);
+                else if (emergency.matches(key)) stop(mc, "Stopped.");
                 else if (toggle.matches(key)) {
                     if (phase == Phase.OFF) start(mc);
                     else stop(mc, "Stopped by F6.");
                 }
             })
         );
-        ClientTickEvents.END_CLIENT_TICK.register(this::tick);
+        ClientTickEvents.END_CLIENT_TICK.register(mc -> {
+            while(settingsKey.consumeClick()) openSettings(mc);
+            while(emergency.consumeClick()) if(phase!=Phase.OFF) stop(mc,"Stopped.");
+            while(toggle.consumeClick()) {
+                if(phase==Phase.OFF) start(mc); else stop(mc,"Stopped.");
+            }
+            tick(mc);
+        });
+    }
+
+    private void openSettings(Minecraft mc) {
+        if(phase!=Phase.OFF){say(mc,"Stop automation before editing.");return;}
+        config=RuleConfig.load();
+        mc.setScreen(new RulesScreen(mc.gui.screen(),config));
     }
 
     private void start(Minecraft mc) {
+        config=RuleConfig.load();
         AbstractContainerMenu menu = menu(mc);
         if (mc.player == null || mc.gameMode == null || !rewards(mc.gui.screen()) || menu == null) {
             say(mc, "Open Crate Rewards, then press F6.");
@@ -87,6 +112,11 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
             case PICKUP -> pickup(mc);
             case TYPE -> clickItemReward(mc);
             case RETURN -> returned(mc);
+            case OPTIONS -> options(mc);
+            case OPEN_WEIGHT -> openWeight(mc);
+            case SET_WEIGHT -> setWeight(mc);
+            case RETURN_OPTIONS -> backOptions(mc);
+            case RETURN_LIST -> backList(mc);
             default -> {}
         }
     }
@@ -102,6 +132,8 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         }
         if (pending.isEmpty()) { stop(mc,"Finished "+done+" rewards. Skipped "+skipped+" duplicate stacks."); return; }
         active=pending.peekFirst(); sourceSlot=-1;
+        currentRule=config.match(active);
+        for(int i=0;i<36;i++) prior[i]=!menu.getSlot(i).getItem().isEmpty();
         for (int i=0;i<menu.slots.size();i++) {
             Slot slot=menu.slots.get(i);
             if (slot.container==mc.player.getInventory() &&
@@ -195,21 +227,127 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
     }
 
     private void returned(Minecraft mc) {
-        if (phaseTicks>240) { stop(mc,"Crate Rewards did not reopen. Check the dialog.");return; }
-        if (!rewards(mc.gui.screen()) || phaseTicks<8) return;
-        AbstractContainerMenu menu=menu(mc);
-        if (menu==null) return;
-        if (!menu.getCarried().isEmpty()) {
-            if (!ItemStack.isSameItemSameComponents(menu.getCarried(),active) ||
-                sourceSlot<0 || sourceSlot>=menu.slots.size() || !menu.getSlot(sourceSlot).getItem().isEmpty()) {
-                stop(mc,"Item still on cursor. Return it to inventory manually.");return;
+        if(phaseTicks>250){stop(mc,"Crate Rewards did not return.");return;}
+        if(!rewards(mc.gui.screen()) || phaseTicks<12)return;
+        AbstractContainerMenu m=menu(mc);
+        if(m==null)return;
+        if(!m.getCarried().isEmpty()){
+            if(!ItemStack.isSameItemSameComponents(m.getCarried(),active) ||
+                sourceSlot<0 || sourceSlot>=m.slots.size() || !m.getSlot(sourceSlot).getItem().isEmpty()){
+                stop(mc,"Item still held; return manually.");return;
             }
-            clickSlot(mc,menu,sourceSlot);phaseTicks=0;return;
+            clickSlot(mc,m,sourceSlot);phaseTicks=0;return;
         }
+        if(config.autoApplyRates && currentRule!=null){
+            for(int i=0;i<36;i++){
+                if(!prior[i] && !m.getSlot(i).getItem().isEmpty()){
+                    say(mc,"Configuring rarity="+currentRule.rarity+", weight="+currentRule.weight);
+                    clickSlot(mc,m,i);
+                    phase=Phase.OPTIONS;phaseTicks=0;return;
+                }
+            }
+            if(phaseTicks<100)return;
+            stop(mc,"Reward created, but item slot not identified. Rate needs manual edit.");
+            return;
+        }
+        complete(mc);
+    }
+    private void options(Minecraft mc){
+        if(phaseTicks>140){stop(mc,"Reward Settings not found. Rate needs manual edit.");return;}
+        AbstractContainerMenu m=menu(mc);
+        if(m==null || m.slots.size()<54 || phaseTicks<7)return;
+        if(!m.getSlot(12).getItem().is(Items.GLISTERING_MELON_SLICE)){
+            if(phaseTicks>35)stop(mc,"Not ExcellentCrates Reward Settings (slot 12 mismatch).");
+            return;
+        }
+        clickSlot(mc,m,12);
+        phase=Phase.OPEN_WEIGHT;phaseTicks=0;
+    }
+    private void openWeight(Minecraft mc){
+        Screen screen=mc.gui.screen();
+        if(phaseTicks>140){stop(mc,"Rarity & Weight input did not open.");return;}
+        if(screen==null || screen instanceof AbstractContainerScreen<?> || phaseTicks<7)return;
+        String title=RuleConfig.normalize(screen.getTitle().getString());
+        if(!(title.contains("weight") || title.contains("rari")))return;
+        edited=false;cycles=0;phase=Phase.SET_WEIGHT;phaseTicks=0;
+    }
+    private void setWeight(Minecraft mc){
+        Screen screen=mc.gui.screen();
+        if(screen==null){stop(mc,"Rate dialog closed unexpectedly.");return;}
+        if(phaseTicks>170){stop(mc,"Rate dialog controls not recognized. Set manually.");return;}
+        String title=RuleConfig.normalize(screen.getTitle().getString());
+        if(!title.contains("weight") && !title.contains("rari")){
+            if(phaseTicks>25)stop(mc,"Unexpected rate dialog screen.");
+            return;
+        }
+        List<AbstractWidget> widgets=new ArrayList<>();
+        for(var child:screen.children())
+            if(child instanceof AbstractWidget w && w.visible && w.active)widgets.add(w);
+        if(!edited){
+            List<EditBox> fields=new ArrayList<>();
+            for(AbstractWidget w:widgets)if(w instanceof EditBox e)fields.add(e);
+            if(fields.size()!=1){
+                if(phaseTicks>35)stop(mc,"Weight input missing. Please enter rate manually.");
+                return;
+            }
+            fields.get(0).setValue(currentRule.weight);
+            edited=true;phaseTicks=0;return;
+        }
+        CycleButton<?> dropdown=null;
+        boolean matched=false;
+        for(AbstractWidget w:widgets){
+            if(w instanceof CycleButton<?> c){
+                dropdown=c;
+                if(RuleConfig.normalize(w.getMessage().getString())
+                    .contains(RuleConfig.normalize(currentRule.rarity)))matched=true;
+            }
+        }
+        if(!matched){
+            if(dropdown==null){
+                if(phaseTicks>35)stop(mc,"Cannot recognize Rarity selector. Set manually.");
+                return;
+            }
+            if(cycles++>=24){stop(mc,"Rarity not found in selector. Set manually.");return;}
+            clickWidget(mc,screen,dropdown);phaseTicks=0;return;
+        }
+        if(phaseTicks<7)return;
+        for(AbstractWidget w:widgets){
+            if(!(w instanceof Button))continue;
+            String label=RuleConfig.normalize(w.getMessage().getString());
+            if(label.equals("ok") || label.equals("done") ||
+               label.contains("confirm") || label.contains("save")){
+                clickWidget(mc,screen,w);
+                say(mc,"Submitted "+currentRule.rarity+" / "+currentRule.weight+".");
+                phase=Phase.RETURN_OPTIONS;phaseTicks=0;return;
+            }
+        }
+        if(phaseTicks>50)stop(mc,"Submit button not found. Set manually.");
+    }
+    private void backOptions(Minecraft mc){
+        if(phaseTicks>140){stop(mc,"Reward Options did not reopen.");return;}
+        AbstractContainerMenu m=menu(mc);
+        if(m==null || m.slots.size()<54 || phaseTicks<9)return;
+        if(!m.getSlot(12).getItem().is(Items.GLISTERING_MELON_SLICE))return;
+        clickSlot(mc,m,49);phase=Phase.RETURN_LIST;phaseTicks=0;
+    }
+    private void backList(Minecraft mc){
+        if(phaseTicks>140){stop(mc,"Crate Rewards did not reopen after rate setting.");return;}
+        if(!rewards(mc.gui.screen()) || phaseTicks<12)return;
+        complete(mc);
+    }
+    private void complete(Minecraft mc){
         pending.removeFirst();done++;
-        active=ItemStack.EMPTY;sourceSlot=-1;
+        active=ItemStack.EMPTY;sourceSlot=-1;currentRule=null;
         say(mc,"Created "+done+" reward(s); "+pending.size()+" remaining.");
         phase=Phase.NEXT;phaseTicks=0;
+    }
+    private static void clickWidget(Minecraft mc,Screen screen,AbstractWidget widget){
+        MouseButtonInfo info=new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT,0);
+        MouseButtonEvent event=new MouseButtonEvent(widget.getX()+widget.getWidth()/2.0,
+            widget.getY()+widget.getHeight()/2.0,info);
+        boolean handled=screen.mouseClicked(event,false);
+        if(mc.gui.screen()==screen)screen.mouseReleased(event);
+        if(!handled && widget instanceof Button b)b.onPress(info);
     }
 
     private static void clickSlot(Minecraft mc, AbstractContainerMenu menu, int slot) {
