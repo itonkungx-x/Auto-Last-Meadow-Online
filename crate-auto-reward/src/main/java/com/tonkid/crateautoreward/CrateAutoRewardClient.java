@@ -49,6 +49,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
     private long pageFingerprint = 0;
     private String expectedRewardName = "";
     private String activeServerProfile = "";
+    private boolean usingPreset = false;
 
     @Override public void onInitializeClient() {
         toggle = KeyMappingHelper.registerKeyMapping(new KeyMapping(
@@ -118,6 +119,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         pending.clear();seen.clear();done=0;skipped=0;sourceSlot=-1;active=ItemStack.EMPTY;
         ClientPresets saves=ClientPresets.load();
         ClientPresets.SavedPreset preset=saves.selected();
+        usingPreset=preset!=null;
         if(preset!=null){
             ClientPresets.ReplayCheck check=saves.check(mc,preset);
             if(!check.missing.isEmpty()){
@@ -183,7 +185,8 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         for (int i=0;i<menu.slots.size();i++) {
             Slot slot=menu.slots.get(i);
             if (slot.container==mc.player.getInventory() &&
-                ItemStack.isSameItemSameComponents(slot.getItem(), active)) { sourceSlot=i; break; }
+                ItemStack.isSameItemSameComponents(slot.getItem(), active) &&
+                (!usingPreset || slot.getItem().getCount()==active.getCount())) { sourceSlot=i; break; }
         }
         if (sourceSlot<0) {
             pending.removeFirst();skipped++;say(mc,"ไม่พบไอเทมต้นทาง จึงข้ามรายการนี้");phaseTicks=0;return;
