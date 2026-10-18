@@ -5,6 +5,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.options.controls.KeyBindsScreen;
 import net.minecraft.network.chat.Component;
 import java.util.Collections;
 
@@ -83,10 +84,17 @@ public final class RulesScreen extends Screen {
             config.rules=RuleConfig.defaults().rules;config.save();
             selected=-1;page=0;error=false;message="คืนค่าเริ่มต้นแล้ว";rebuildWidgets();
         });
-        btn((config.autoApplyRates?"✓ ":"✕ ")+"ตั้งเรทอัตโนมัติ: "+(config.autoApplyRates?"เปิด":"ปิด"),x,t+311,w*62/100,22,b->{
+        btn((config.autoApplyRates?"✓ ":"✕ ")+"เรท: "+(config.autoApplyRates?"เปิด":"ปิด"),x,t+311,w*35/100,22,b->{
             config.autoApplyRates=!config.autoApplyRates;config.save();rebuildWidgets();
         });
-        btn("เสร็จสิ้น",x+w*63/100,t+311,w*37/100,22,b->onClose());
+        btn("ตั้งปุ่มลัด",x+w*36/100,t+311,w*33/100,22,b->{
+            config.save();
+            // Vanilla Minecraft owns the hotkey assignments and persists them in options.txt.
+            // Opening its editor avoids a second, conflicting keybinding store.
+            Minecraft mc=Minecraft.getInstance();
+            mc.gui.setScreen(new KeyBindsScreen(this,mc.options));
+        });
+        btn("เสร็จสิ้น",x+w*70/100,t+311,w*30/100,22,b->onClose());
     }
     private void shift(int direction){
         if(selected<0 || selected>=config.rules.size()) {error=true;message="เลือกกฎก่อนจัดลำดับ";return;}
@@ -124,7 +132,7 @@ public final class RulesScreen extends Screen {
         super.extractRenderState(g,mx,my,dt);
         int x=left()+16,t=top(),w=contentWidth();
         g.text(font,"CRATE AUTO REWARD  •  26.3",x,t+11,ORANGE,true);
-        g.text(font,"ตั้งค่าอัตรารางวัลและกฎการจับชื่อ",x,t+29,WHITE,false);
+        g.text(font,"ตั้งเรท / จัดกฎ / เปลี่ยนปุ่มลัด (รองรับโน้ตบุ๊ก)",x,t+29,WHITE,false);
         g.text(font,"คำที่พบในชื่อ / Lore / Material",x,t+65,0xFFCDD5E0,false);
         g.text(font,"Rarity ID",x+w*47/100,t+65,0xFFCDD5E0,false);
         g.text(font,"Weight",x+w*76/100,t+65,0xFFCDD5E0,false);
