@@ -32,3 +32,19 @@ If **Auto-apply rates** is enabled and a rule matches, it looks for a *new* rewa
 - If the Crate Rewards page already has 36 reward slots filled, auto-rate editing may stop because it cannot safely identify a new reward from the page.
 - Press F8 if the interface changes unexpectedly. Check whether the mouse cursor is holding an item before closing the menu.
 - This project is provided in an isolated GitHub branch without modifying the original application's default branch.
+
+
+## Saved crate presets (v0.4.0)
+
+To retain the original Minecraft custom item data across sessions even when the items are no longer in the player's inventory, install **CratePresetBridge-26.3** on the Paper/Purpur server alongside ExcellentCrates 7.x. The client mod alone cannot manufacture item stacks or change server rewards from a saved snapshot.
+
+In-game server admin commands:
+- `/cratepreset`: open saved preset library with colored shulker icons.
+- `/cratepreset create สีเหลือง`: create and open the yellow preset editor.
+- Shift-click each inventory item to **copy** it into the preset slots without consuming the source.
+- Click **บันทึกกล่องนี้**. Server persists exact Bukkit ItemStack data under `plugins/CratePresetBridge/presets.yml`, keeping a `.bak` backup on each save.
+- `/cratepreset target <crateId>`: select the ExcellentCrates destination.
+- In saved preset library, **right-click** a box to apply its captured items and Rarity/Weight to the target crate. Reapplying updates rewards with stable IDs instead of inserting duplicates.
+- From F7 mod rules, click **ซิงก์กฎไปเซิร์ฟเวอร์** (server admin access required). Rules sync atomically on completion.
+
+In the client mod, press remappable **K** to open saved presets, or F7 then **กล่องที่เซฟ**. The plugin requires the `cratepreset.admin` permission (op by default). Rarity IDs must be defined in ExcellentCrates, e.g. `mythical` (or server alias `mythic`), `legendary`, `epic`, `rare` and `common`. For any compatibility changes to external custom-item plugins, re-test a stored preset first; the archive preserves item data, not third-party plugin executable behavior.
