@@ -4,6 +4,8 @@ A client-side Minecraft mod for the ExcellentCrates reward creation GUI. Uses Mi
 
 ## Keybinds
 
+You can remap the keys from **F7 → ตั้งปุ่มลัด**; this opens Minecraft's built-in key binding editor, so it works on laptops without needing Fn/F-keys. Rebinding persists in Minecraft options.
+
 Minecraft **Options -> Controls -> Key Binds** -> Miscellaneous:
 - **F6** Start/stop one pass over distinct inventory item stacks.
 - **F7** Open the rule editor (open it outside the crate GUI).
