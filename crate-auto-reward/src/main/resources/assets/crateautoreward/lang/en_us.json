@@ -1,5 +1,5 @@
 {
-  "key.crateautoreward.toggle": "Crate Auto Reward: Start or Stop",
-  "key.crateautoreward.stop": "Crate Auto Reward: Emergency Stop",
-  "key.crateautoreward.settings": "Crate Auto Reward: Rules and Rates"
+  "key.crateautoreward.toggle": "เริ่ม / หยุดสร้างรางวัล (Crate Auto Reward)",
+  "key.crateautoreward.stop": "หยุดฉุกเฉิน (Crate Auto Reward)",
+  "key.crateautoreward.settings": "ตั้งกฎ Rarity / Weight (Crate Auto Reward)"
 }
