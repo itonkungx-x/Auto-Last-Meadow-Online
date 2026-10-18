@@ -61,25 +61,25 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         ScreenEvents.BEFORE_INIT.register((mc, screen, width, height) ->
             ScreenKeyboardEvents.beforeKeyPress(screen).register((s, key) -> {
                 if (settingsKey.matches(key)) openSettings(mc);
-                else if (emergency.matches(key)) stop(mc, "Stopped.");
+                else if (emergency.matches(key)) stop(mc, "หยุดการทำงานแล้ว");
                 else if (toggle.matches(key)) {
                     if (phase == Phase.OFF) start(mc);
-                    else stop(mc, "Stopped by F6.");
+                    else stop(mc, "หยุดด้วยปุ่มเริ่ม/หยุด");
                 }
             })
         );
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
             while(settingsKey.consumeClick()) openSettings(mc);
-            while(emergency.consumeClick()) if(phase!=Phase.OFF) stop(mc,"Stopped.");
+            while(emergency.consumeClick()) if(phase!=Phase.OFF) stop(mc,"หยุดการทำงานแล้ว");
             while(toggle.consumeClick()) {
-                if(phase==Phase.OFF) start(mc); else stop(mc,"Stopped.");
+                if(phase==Phase.OFF) start(mc); else stop(mc,"หยุดการทำงานแล้ว");
             }
             tick(mc);
         });
     }
 
     private void openSettings(Minecraft mc) {
-        if(phase!=Phase.OFF){say(mc,"Stop automation before editing.");return;}
+        if(phase!=Phase.OFF){say(mc,"กรุณาหยุดการทำงานก่อนเปิดตั้งค่า");return;}
         config=RuleConfig.load();
         mc.gui.setScreen(new RulesScreen(mc.gui.screen(),config));
     }
@@ -88,12 +88,12 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         config=RuleConfig.load();
         AbstractContainerMenu menu = menu(mc);
         if (mc.player == null || mc.gameMode == null || !rewards(mc.gui.screen()) || menu == null) {
-            say(mc, "Open Crate Rewards, then press F6.");
+            say(mc, "เปิด Crate Rewards ก่อน แล้วกดปุ่มเริ่ม");
             return;
         }
         if (menu.slots.size() <= ANVIL_SLOT || !menu.getSlot(ANVIL_SLOT).getItem().is(Items.ANVIL) ||
             !menu.getCarried().isEmpty()) {
-            say(mc, "Missing Anvil in slot 42, or cursor is holding an item.");
+            say(mc, "ไม่พบ Anvil ช่อง 42 หรือมีไอเทมติดเมาส์");
             return;
         }
         pending.clear(); seen.clear(); done=0; skipped=0; sourceSlot=-1; active=ItemStack.EMPTY;
@@ -103,15 +103,15 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
             if (seen.stream().anyMatch(old -> ItemStack.isSameItemSameComponents(old,item))) skipped++;
             else {seen.add(item.copy()); pending.addLast(item.copy());}
         }
-        if (pending.isEmpty()) { say(mc,"No items in inventory."); return; }
+        if (pending.isEmpty()) { say(mc,"ไม่พบไอเทมในกระเป๋า"); return; }
         phase = Phase.NEXT; phaseTicks = 0;
-        say(mc,"Started "+pending.size()+" unique items ("+skipped+" duplicates skipped). F8 stops.");
+        say(mc,"เริ่มดำเนินการ "+pending.size()+" ชนิด ("+skipped+" รายการซ้ำถูกข้าม) กดปุ่มหยุดเมื่อจำเป็น");
     }
 
     private void tick(Minecraft mc) {
         if (phase == Phase.OFF) return;
         phaseTicks++;
-        if (mc.player == null || mc.gameMode == null) { stop(mc,"Disconnected."); return; }
+        if (mc.player == null || mc.gameMode == null) { stop(mc,"ขาดการเชื่อมต่อ"); return; }
         switch(phase) {
             case NEXT -> next(mc);
             case PICKUP -> pickup(mc);
@@ -132,12 +132,12 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         if (phaseTicks < 12) return;
         AbstractContainerMenu menu = menu(mc);
         if (!rewards(mc.gui.screen()) || menu==null || !menu.getCarried().isEmpty()) {
-            stop(mc,"Unexpected Crate Rewards state or cursor occupied."); return;
+            stop(mc,"เมนูเปลี่ยนหรือมีไอเทมติดเมาส์"); return;
         }
         if (menu.slots.size() <= ANVIL_SLOT || !menu.getSlot(ANVIL_SLOT).getItem().is(Items.ANVIL)) {
-            stop(mc,"Anvil has changed. Stopped."); return;
+            stop(mc,"Anvil has changed. หยุดการทำงานแล้ว"); return;
         }
-        if (pending.isEmpty()) { stop(mc,"Finished "+done+" rewards. Skipped "+skipped+" duplicate stacks."); return; }
+        if (pending.isEmpty()) { stop(mc,"เสร็จสิ้น "+done+" รางวัล | ข้าม "+skipped+" รายการซ้ำ"); return; }
         active=pending.peekFirst(); sourceSlot=-1;
         expectedRewardName=RuleConfig.normalize(active.getHoverName().getString());
         examinedPages=0;
@@ -149,7 +149,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
                 ItemStack.isSameItemSameComponents(slot.getItem(), active)) { sourceSlot=i; break; }
         }
         if (sourceSlot<0) {
-            pending.removeFirst();skipped++;say(mc,"Inventory item missing; skipped.");phaseTicks=0;return;
+            pending.removeFirst();skipped++;say(mc,"ไม่พบไอเทมต้นทาง จึงข้ามรายการนี้");phaseTicks=0;return;
         }
         clickSlot(mc,menu,sourceSlot);
         phase=Phase.PICKUP;phaseTicks=0;
@@ -158,23 +158,23 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
     private void pickup(Minecraft mc) {
         AbstractContainerMenu menu = menu(mc);
         if (!rewards(mc.gui.screen()) || menu==null) {
-            stop(mc,"Crate Rewards changed during pickup.");return;
+            stop(mc,"เมนูเปลี่ยนขณะหยิบไอเทม");return;
         }
         if (!menu.getCarried().isEmpty()) {
             if (!ItemStack.isSameItemSameComponents(menu.getCarried(), active)) {
-                stop(mc,"Unexpected item on cursor.");return;
+                stop(mc,"ไอเทมบนเมาส์ไม่ตรงกับรายการปัจจุบัน");return;
             }
             // Deliberately click ON the ANVIL, not an empty reward slot.
             clickSlot(mc,menu,ANVIL_SLOT);
             phase=Phase.TYPE;phaseTicks=0;
-        } else if (phaseTicks > 60) stop(mc,"Timed out picking up item.");
+        } else if (phaseTicks > 60) stop(mc,"หมดเวลารอการหยิบไอเทม");
     }
 
     private void clickItemReward(Minecraft mc) {
         Screen screen=mc.gui.screen();
         if (screen==null || rewards(screen) || phaseTicks<7) return;
         if (phaseTicks>200) {
-            stop(mc,"Item Reward dialog timed out: "+screen.getClass().getSimpleName());return;
+            stop(mc,"รอหน้าต่าง Item Reward นานเกินไป: "+screen.getClass().getSimpleName());return;
         }
 
         List<AbstractWidget> widgets=new ArrayList<>();
@@ -214,7 +214,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
                 clicked=true;
             }
             if (clicked) {
-                say(mc,"Item Reward selected. Waiting for Crate Rewards...");
+                say(mc,"กด Item Reward แล้ว กำลังรอหน้า Crate Rewards");
                 phase=Phase.RETURN;phaseTicks=0;return;
             }
         }
@@ -226,10 +226,10 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
             MouseButtonEvent event=new MouseButtonEvent(screen.width*0.42,screen.height*0.285,button);
             if (screen.mouseClicked(event,false)) {
                 if (mc.gui.screen()==screen) screen.mouseReleased(event);
-                say(mc,"Item Reward dialog action sent (fallback).");
+                say(mc,"ส่งการคลิก Item Reward แบบสำรองแล้ว");
                 phase=Phase.RETURN;phaseTicks=0;
             } else if (phaseTicks==35) {
-                say(mc,"Could not find the action: screen="+screen.getClass().getSimpleName()+
+                say(mc,"ไม่พบปุ่ม Item Reward | หน้าจอ="+screen.getClass().getSimpleName()+
                     ", widgets="+widgets.size()+".");
             }
         }
@@ -309,11 +309,11 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         return shown.equals(expected)||shown.endsWith(expected)||expected.endsWith(shown);
     }
     private void options(Minecraft mc){
-        if(phaseTicks>140){stop(mc,"Reward Settings not found. Rate needs manual edit.");return;}
+        if(phaseTicks>140){stop(mc,"ไม่พบ Reward Settings กรุณาตั้งเรทด้วยตนเอง");return;}
         AbstractContainerMenu m=menu(mc);
         if(m==null || m.slots.size()<54 || phaseTicks<7)return;
         if(!m.getSlot(12).getItem().is(Items.GLISTERING_MELON_SLICE)){
-            if(phaseTicks>35)stop(mc,"Not ExcellentCrates Reward Settings (slot 12 mismatch).");
+            if(phaseTicks>35)stop(mc,"ช่อง 12 ไม่ตรงกับเมนู Rarity & Weight");
             return;
         }
         clickSlot(mc,m,12);
@@ -321,7 +321,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
     }
     private void openWeight(Minecraft mc){
         Screen screen=mc.gui.screen();
-        if(phaseTicks>140){stop(mc,"Rarity & Weight input did not open.");return;}
+        if(phaseTicks>140){stop(mc,"ไม่พบหน้าตั้งค่า Rarity & Weight");return;}
         if(screen==null || screen instanceof AbstractContainerScreen<?> || phaseTicks<7)return;
         String title=RuleConfig.normalize(screen.getTitle().getString());
         if(!(title.contains("weight") || title.contains("rari")))return;
@@ -329,11 +329,11 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
     }
     private void setWeight(Minecraft mc){
         Screen screen=mc.gui.screen();
-        if(screen==null){stop(mc,"Rate dialog closed unexpectedly.");return;}
-        if(phaseTicks>170){stop(mc,"Rate dialog controls not recognized. Set manually.");return;}
+        if(screen==null){stop(mc,"หน้าตั้งค่าเรทปิดโดยไม่คาดคิด");return;}
+        if(phaseTicks>170){stop(mc,"ไม่รู้จักช่องกรอกเรท กรุณาตั้งค่าเอง");return;}
         String title=RuleConfig.normalize(screen.getTitle().getString());
         if(!title.contains("weight") && !title.contains("rari")){
-            if(phaseTicks>25)stop(mc,"Unexpected rate dialog screen.");
+            if(phaseTicks>25)stop(mc,"ไม่ใช่หน้าตั้งค่าเรทที่คาดไว้");
             return;
         }
         List<AbstractWidget> widgets=new ArrayList<>();
@@ -343,7 +343,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
             List<EditBox> fields=new ArrayList<>();
             for(AbstractWidget w:widgets)if(w instanceof EditBox e)fields.add(e);
             if(fields.size()!=1){
-                if(phaseTicks>35)stop(mc,"Weight input missing. Please enter rate manually.");
+                if(phaseTicks>35)stop(mc,"ไม่พบช่อง Weight กรุณาตั้งค่าเอง");
                 return;
             }
             fields.get(0).setValue(currentRule.weight);
@@ -371,7 +371,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
                 }
                 return;
             }
-            if(cycles++>=24){stop(mc,"Rarity not found in selector. Set manually.");return;}
+            if(cycles++>=24){stop(mc,"ไม่มี Rarity นี้ในเมนูของเซิร์ฟเวอร์");return;}
             clickWidget(mc,screen,dropdown);phaseTicks=0;return;
         }
         if(phaseTicks<7)return;
@@ -381,14 +381,14 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
             if(label.equals("ok") || label.equals("done") ||
                label.contains("confirm") || label.contains("save")){
                 clickWidget(mc,screen,w);
-                say(mc,"Submitted "+currentRule.rarity+" / "+currentRule.weight+".");
+                say(mc,"ส่งค่าตั้งเรทแล้ว "+currentRule.rarity+" / "+currentRule.weight+".");
                 phase=Phase.RETURN_OPTIONS;phaseTicks=0;return;
             }
         }
-        if(phaseTicks>50)stop(mc,"Submit button not found. Set manually.");
+        if(phaseTicks>50)stop(mc,"ไม่พบปุ่มยืนยัน กรุณาตั้งค่าเอง");
     }
     private void backOptions(Minecraft mc){
-        if(phaseTicks>140){stop(mc,"Reward Options did not reopen.");return;}
+        if(phaseTicks>140){stop(mc,"เมนู Reward Options ไม่กลับมา");return;}
         AbstractContainerMenu m=menu(mc);
         if(m==null || m.slots.size()<54 || phaseTicks<9)return;
         if(!m.getSlot(12).getItem().is(Items.GLISTERING_MELON_SLICE))return;
@@ -409,7 +409,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         clickSlot(mc,m,49);phase=Phase.RETURN_LIST;phaseTicks=0;
     }
     private void backList(Minecraft mc){
-        if(phaseTicks>140){stop(mc,"Crate Rewards did not reopen after rate setting.");return;}
+        if(phaseTicks>140){stop(mc,"เมนู Crate Rewards ไม่กลับมาหลังตั้งค่า");return;}
         if(!rewards(mc.gui.screen()) || phaseTicks<12)return;
         complete(mc);
     }
