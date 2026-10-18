@@ -29,6 +29,8 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -45,6 +47,7 @@ public final class CratePresetBridge extends JavaPlugin implements Listener, Com
     private final Map<String, Preset> presets = new LinkedHashMap<>();
     private final Map<UUID,String> targets = new HashMap<>();
     private final Set<UUID> activeWrites = new LinkedHashSet<>();
+    private final Map<UUID,List<Map<String,Object>>> stagedRules = new HashMap<>();
     private File storeFile;
 
     private static final int SIZE=45;
@@ -223,6 +226,49 @@ public final class CratePresetBridge extends JavaPlugin implements Listener, Com
             if(crateId==null){p.sendMessage("§cตั้งปลายทางด้วย /cratepreset target <crateId> ก่อน");return true;}
             apply(p,preset,crateId);return true;
         }
+        if(sub.equals("sync")){
+            if(args.length<2){p.sendMessage("§eใช้ /cratepreset sync begin/add/commit/abort");return true;}
+            String action=args[1].toLowerCase(Locale.ROOT);
+            if(action.equals("begin")){
+                stagedRules.put(p.getUniqueId(),new ArrayList<>());
+                p.sendMessage("§7เริ่มรับกฎจากม็อด...");
+                return true;
+            }
+            if(action.equals("abort")){
+                stagedRules.remove(p.getUniqueId());
+                p.sendMessage("§eยกเลิกการซิงก์กฎ");return true;
+            }
+            List<Map<String,Object>> staged=stagedRules.get(p.getUniqueId());
+            if(staged==null){p.sendMessage("§cต้องเริ่มด้วย sync begin ก่อน");return true;}
+            if(action.equals("add") && args.length==3){
+                try{
+                    String raw=new String(Base64.getUrlDecoder().decode(args[2]),StandardCharsets.UTF_8);
+                    String[] fields=raw.split("\\u001F",-1);
+                    if(fields.length!=4 || fields[1].isBlank() || fields[1].length()>96 ||
+                       fields[2].isBlank() || fields[2].length()>40 ||
+                       !Set.of("NAME","LORE","MATERIAL").contains(fields[0]))
+                        throw new IllegalArgumentException("Invalid rule fields");
+                    double weight=Double.parseDouble(fields[3]);
+                    if(!Double.isFinite(weight)||weight<0)throw new IllegalArgumentException("Invalid weight");
+                    if(staged.size()>=100)throw new IllegalArgumentException("Max 100 rules");
+                    staged.add(new LinkedHashMap<>(Map.of(
+                        "source",fields[0],"pattern",fields[1],
+                        "rarity",lower(fields[2]),"weight",weight)));
+                }catch(Exception ex){
+                    p.sendMessage("§cกฎไม่ถูกต้อง: "+ex.getMessage());
+                    stagedRules.remove(p.getUniqueId());
+                }
+                return true;
+            }
+            if(action.equals("commit")){
+                if(staged.isEmpty()){p.sendMessage("§cไม่มีกฎที่จะบันทึก");return true;}
+                getConfig().set("rules",staged);saveConfig();
+                stagedRules.remove(p.getUniqueId());
+                p.sendMessage("§aซิงก์กฎจากม็อดแล้ว "+staged.size()+" รายการ");
+                return true;
+            }
+            p.sendMessage("§cคำสั่ง sync ไม่ถูกต้อง");return true;
+        }
         if(sub.equals("rule")){
             if(args.length==1){showRules(p);return true;}
             if(args.length==5 && args[1].equalsIgnoreCase("set")){
@@ -244,7 +290,7 @@ public final class CratePresetBridge extends JavaPlugin implements Listener, Com
             p.sendMessage("§eใช้ /cratepreset rule set <คำในชื่อ> <rarity> <weight>");
             return true;
         }
-        p.sendMessage("§eคำสั่ง: /cratepreset, create, edit, target, apply, rule");
+        p.sendMessage("§eคำสั่ง: /cratepreset, create, edit, target, apply, rule, sync");
         return true;
     }
     private static Map<String,Object> copyMap(Map<?,?> input){
@@ -257,10 +303,11 @@ public final class CratePresetBridge extends JavaPlugin implements Listener, Com
         p.sendMessage("§7ปรับด้วย /cratepreset rule set <คำในชื่อ> <rarity> <weight>");
     }
     @Override public List<String> onTabComplete(CommandSender s,Command cmd,String alias,String[] args){
-        if(args.length==1)return List.of("list","create","target","edit","apply","rule");
+        if(args.length==1)return List.of("list","create","target","edit","apply","rule","sync");
         if(args.length==2&&(args[0].equalsIgnoreCase("apply")||args[0].equalsIgnoreCase("edit")))return new ArrayList<>(presets.keySet());
         if(args.length==2&&args[0].equalsIgnoreCase("target"))return crateIds();
         if(args.length==2&&args[0].equalsIgnoreCase("rule"))return List.of("set");
+        if(args.length==2&&args[0].equalsIgnoreCase("sync"))return List.of("begin","add","commit","abort");
         return List.of();
     }
     @EventHandler public void onClick(InventoryClickEvent event){
