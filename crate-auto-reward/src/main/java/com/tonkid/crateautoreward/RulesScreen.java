@@ -84,17 +84,23 @@ public final class RulesScreen extends Screen {
             config.rules=RuleConfig.defaults().rules;config.save();
             selected=-1;page=0;error=false;message="คืนค่าเริ่มต้นแล้ว";rebuildWidgets();
         });
-        btn((config.autoApplyRates?"✓ ":"✕ ")+"เรท: "+(config.autoApplyRates?"เปิด":"ปิด"),x,t+311,w*35/100,22,b->{
-            config.autoApplyRates=!config.autoApplyRates;config.save();rebuildWidgets();
-        });
-        btn("ตั้งปุ่มลัด",x+w*36/100,t+311,w*33/100,22,b->{
+        btn((config.autoApplyRates?"✓ ":"✕ ")+"เรท: "+(config.autoApplyRates?"เปิด":"ปิด"),
+            x,t+311,w*24/100,22,b->{config.autoApplyRates=!config.autoApplyRates;config.save();rebuildWidgets();});
+        btn("กล่องที่เซฟ",x+w*25/100,t+311,w*25/100-4,22,b->{
             config.save();
-            // Vanilla Minecraft owns the hotkey assignments and persists them in options.txt.
-            // Opening its editor avoids a second, conflicting keybinding store.
+            Minecraft mc=Minecraft.getInstance();
+            if(mc.player==null){
+                error=true;message="ต้องเข้าเซิร์ฟเวอร์ก่อนเปิดกล่อง Preset";return;
+            }
+            mc.gui.setScreen(null);
+            mc.player.connection.sendCommand("cratepreset");
+        });
+        btn("ตั้งปุ่มลัด",x+w*50/100,t+311,w*25/100-4,22,b->{
+            config.save();
             Minecraft mc=Minecraft.getInstance();
             mc.gui.setScreen(new KeyBindsScreen(this,mc.options));
         });
-        btn("เสร็จสิ้น",x+w*70/100,t+311,w*30/100,22,b->onClose());
+        btn("เสร็จสิ้น",x+w*75/100,t+311,w*25/100,22,b->onClose());
     }
     private void shift(int direction){
         if(selected<0 || selected>=config.rules.size()) {error=true;message="เลือกกฎก่อนจัดลำดับ";return;}
