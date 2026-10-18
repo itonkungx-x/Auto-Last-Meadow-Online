@@ -243,7 +243,7 @@ public final class CratePresetBridge extends JavaPlugin implements Listener, Com
             if(action.equals("add") && args.length==3){
                 try{
                     String raw=new String(Base64.getUrlDecoder().decode(args[2]),StandardCharsets.UTF_8);
-                    String[] fields=raw.split("\\u001F",-1);
+                    String[] fields=raw.split(String.valueOf((char)31),-1);
                     if(fields.length!=4 || fields[1].isBlank() || fields[1].length()>96 ||
                        fields[2].isBlank() || fields[2].length()>40 ||
                        !Set.of("NAME","LORE","MATERIAL").contains(fields[0]))
