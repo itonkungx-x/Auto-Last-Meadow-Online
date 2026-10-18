@@ -22,7 +22,7 @@ public class RuleConfig {
     public static final class Rule {
         public String source="NAME";
         public String contains="STAFF";
-        public String rarity="MYTHIC";
+        public String rarity="mythical";
         public String weight="0.01";
 
         public Rule() {}
@@ -36,17 +36,51 @@ public class RuleConfig {
     public boolean autoApplyRates = true;
 
     public static RuleConfig defaults() {
-        RuleConfig config=new RuleConfig();
-        config.rules.add(new Rule("NAME","STAFF","MYTHICAL","0.01"));
-        config.rules.add(new Rule("NAME","SWORD","RARE","0.10"));
-        config.rules.add(new Rule("NAME","HELMET","RARE","0.01"));
-        config.rules.add(new Rule("NAME","CHESTPLATE","RARE","0.01"));
-        config.rules.add(new Rule("NAME","LEGGINGS","RARE","0.01"));
-        config.rules.add(new Rule("NAME","BOOTS","RARE","0.01"));
-        config.rules.add(new Rule("NAME","BOW","EPIC","0.05"));
-        config.rules.add(new Rule("NAME","*","COMMON","10"));
+        RuleConfig config = new RuleConfig();
+        // Specific weapon and armor subtypes first; generic categories last.
+        config.rules.add(new Rule("NAME", "หมวกหลัก", "mythical", "8"));
+        config.rules.add(new Rule("NAME", "MAIN HELMET", "mythical", "8"));
+        config.rules.add(new Rule("NAME", "WINGS", "mythical", "7"));
+        config.rules.add(new Rule("NAME", "ปีก", "mythical", "7"));
+
+        config.rules.add(new Rule("NAME", "CROSSBOW", "epic", "10"));
+        config.rules.add(new Rule("NAME", "หน้าไม้", "epic", "10"));
+        config.rules.add(new Rule("NAME", "BOW", "epic", "10"));
+        config.rules.add(new Rule("NAME", "ธนู", "epic", "10"));
+        config.rules.add(new Rule("NAME", "SHIELD", "rare", "10"));
+        config.rules.add(new Rule("NAME", "โล่", "rare", "10"));
+
+        config.rules.add(new Rule("NAME", "PICKAXE", "legendary", "10"));
+        config.rules.add(new Rule("NAME", "PICK AXE", "legendary", "10"));
+        config.rules.add(new Rule("NAME", "SHOVEL", "legendary", "10"));
+        config.rules.add(new Rule("NAME", "HOE", "legendary", "10"));
+        config.rules.add(new Rule("NAME", "FISHING ROD", "legendary", "10"));
+        config.rules.add(new Rule("NAME", "SHEARS", "legendary", "10"));
+        config.rules.add(new Rule("NAME", "TOOL", "legendary", "10"));
+        config.rules.add(new Rule("NAME", "อุปกรณ์", "legendary", "10"));
+
+        config.rules.add(new Rule("NAME", "SWORD", "mythical", "8"));
+        config.rules.add(new Rule("NAME", "ดาบ", "mythical", "8"));
+        config.rules.add(new Rule("NAME", "STAFF", "mythical", "10"));
+        config.rules.add(new Rule("NAME", "DAGGER", "mythical", "10"));
+        config.rules.add(new Rule("NAME", "SPEAR", "mythical", "10"));
+        config.rules.add(new Rule("NAME", "TRIDENT", "mythical", "10"));
+        config.rules.add(new Rule("NAME", "MACE", "mythical", "10"));
+        config.rules.add(new Rule("NAME", "HAMMER", "mythical", "10"));
+        config.rules.add(new Rule("NAME", "BATTLE AXE", "mythical", "10"));
+        config.rules.add(new Rule("NAME", "อาวุธ", "mythical", "10"));
+
+        config.rules.add(new Rule("NAME", "HELMET", "legendary", "10"));
+        config.rules.add(new Rule("NAME", "CHESTPLATE", "legendary", "10"));
+        config.rules.add(new Rule("NAME", "LEGGINGS", "legendary", "10"));
+        config.rules.add(new Rule("NAME", "BOOTS", "legendary", "10"));
+        config.rules.add(new Rule("NAME", "ARMOR", "legendary", "10"));
+        config.rules.add(new Rule("NAME", "เกราะ", "legendary", "10"));
+
+        config.rules.add(new Rule("NAME", "*", "common", "10"));
         return config;
     }
+
     public static RuleConfig load() {
         if (!Files.exists(FILE)) {
             RuleConfig defaults=defaults();defaults.save();return defaults;
