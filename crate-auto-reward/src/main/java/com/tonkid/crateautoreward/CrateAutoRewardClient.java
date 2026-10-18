@@ -22,6 +22,8 @@ import net.minecraft.world.inventory.ContainerInput;
 import net.minecraft.world.inventory.Slot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.core.component.DataComponents;
+import net.minecraft.world.item.component.ItemLore;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -358,7 +360,15 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         }
         if(!matched){
             if(dropdown==null){
-                if(phaseTicks>35)stop(mc,"Cannot recognize Rarity selector. Set manually.");
+                if(phaseTicks>35){
+                    StringBuilder found=new StringBuilder();
+                    for(AbstractWidget w:widgets){
+                        if(found.length()>130)break;
+                        found.append(w.getClass().getSimpleName()).append("=")
+                            .append(w.getMessage().getString()).append("; ");
+                    }
+                    stop(mc,"ไม่พบตัวเลือก Rarity | "+found);
+                }
                 return;
             }
             if(cycles++>=24){stop(mc,"Rarity not found in selector. Set manually.");return;}
@@ -382,6 +392,20 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         AbstractContainerMenu m=menu(mc);
         if(m==null || m.slots.size()<54 || phaseTicks<9)return;
         if(!m.getSlot(12).getItem().is(Items.GLISTERING_MELON_SLICE))return;
+        // Verify both server-returned rate values before reporting success.
+        ItemLore lore=m.getSlot(12).getItem().get(DataComponents.LORE);
+        if(lore!=null && !lore.lines().isEmpty()){
+            StringBuilder text=new StringBuilder();
+            for(var line:lore.lines())text.append(RuleConfig.normalize(line.getString())).append(" ");
+            String value=text.toString();
+            String rarity=RuleConfig.normalize(currentRule.rarity);
+            String actualRarity=rarity.equals("mythic")?"mythical":rarity;
+            if(!value.contains(actualRarity) || !value.contains(currentRule.weight)){
+                stop(mc,"เซิร์ฟเวอร์ยังไม่ได้บันทึกเรทที่ขอ ("+
+                    currentRule.rarity+" / "+currentRule.weight+"). กรุณาตรวจสอบ Reward Settings.");
+                return;
+            }
+        }
         clickSlot(mc,m,49);phase=Phase.RETURN_LIST;phaseTicks=0;
     }
     private void backList(Minecraft mc){
