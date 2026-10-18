@@ -1,0 +1,26 @@
+name: Build Fabric Crate Auto Reward 26.3
+on:
+  push:
+    branches: [crate-auto-reward-fabric-26-3]
+    paths:
+      - 'crate-auto-reward/**'
+      - '.github/workflows/crate-auto-reward.yml'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '9.7.1'
+      - run: gradle -p crate-auto-reward build --no-daemon
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: CrateAutoReward-26.3-v0.1.2
+          path: crate-auto-reward/build/libs/*.jar
