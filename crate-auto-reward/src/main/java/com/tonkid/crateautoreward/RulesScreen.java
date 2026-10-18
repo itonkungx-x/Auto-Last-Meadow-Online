@@ -55,8 +55,13 @@ public final class RulesScreen extends Screen {
         });
         btn("↑",x,t+132,33,20,b->shift(-1));
         btn("↓",x+38,t+132,33,20,b->shift(1));
-        btn("ยกเลิกการเลือก",x+76,t+132,w-76,20,b->{
+        btn("ยกเลิกการเลือก",x+76,t+132,w*42/100-76,20,b->{
             selected=-1;source="NAME";error=false;message="พร้อมเพิ่มกฎใหม่";rebuildWidgets();
+        });
+        btn("ซิงก์กฎไปเซิร์ฟเวอร์",x+w*43/100,t+132,w*57/100,20,b->{
+            config.save();
+            CrateAutoRewardClient.queueRuleSync(Minecraft.getInstance(),config);
+            error=false;message="กำลังซิงก์กฎ โปรดตรวจข้อความตอบกลับในแชตเซิร์ฟเวอร์";
         });
         int offset=page*5;
         for(int row=0;row<5;row++){
