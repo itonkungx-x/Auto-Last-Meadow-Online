@@ -76,7 +76,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
     private void openSettings(Minecraft mc) {
         if(phase!=Phase.OFF){say(mc,"Stop automation before editing.");return;}
         config=RuleConfig.load();
-        mc.setScreen(new RulesScreen(mc.gui.screen(),config));
+        mc.gui.setScreen(new RulesScreen(mc.gui.screen(),config));
     }
 
     private void start(Minecraft mc) {
