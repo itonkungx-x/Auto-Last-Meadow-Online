@@ -77,6 +77,21 @@ public class RuleConfig {
         config.rules.add(new Rule("NAME", "ARMOR", "legendary", "10"));
         config.rules.add(new Rule("NAME", "เกราะ", "legendary", "10"));
 
+        // Material fallbacks when a vanilla/custom display name has no category word.
+        config.rules.add(new Rule("MATERIAL", "_crossbow", "epic", "10"));
+        config.rules.add(new Rule("MATERIAL", "_bow", "epic", "10"));
+        config.rules.add(new Rule("MATERIAL", "_shield", "rare", "10"));
+        config.rules.add(new Rule("MATERIAL", "_sword", "mythical", "8"));
+        config.rules.add(new Rule("MATERIAL", "_trident", "mythical", "10"));
+        config.rules.add(new Rule("MATERIAL", "_mace", "mythical", "10"));
+        config.rules.add(new Rule("MATERIAL", "_helmet", "legendary", "10"));
+        config.rules.add(new Rule("MATERIAL", "_chestplate", "legendary", "10"));
+        config.rules.add(new Rule("MATERIAL", "_leggings", "legendary", "10"));
+        config.rules.add(new Rule("MATERIAL", "_boots", "legendary", "10"));
+        config.rules.add(new Rule("MATERIAL", "_pickaxe", "legendary", "10"));
+        config.rules.add(new Rule("MATERIAL", "_axe", "legendary", "10"));
+        config.rules.add(new Rule("MATERIAL", "_shovel", "legendary", "10"));
+        config.rules.add(new Rule("MATERIAL", "_hoe", "legendary", "10"));
         config.rules.add(new Rule("NAME", "*", "common", "10"));
         return config;
     }
