@@ -1,99 +1,139 @@
 package com.tonkid.crateautoreward;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-import java.util.Locale;
+import java.util.Collections;
 
-public class RulesScreen extends Screen {
+public final class RulesScreen extends Screen {
+    private static final int ORANGE=0xFFFFA84E, GOLD=0xFFFFCA78, WHITE=0xFFF3F4F6;
     private final Screen parent;
-    private final RuleConfig store;
-    private EditBox patternBox,rarityBox,weightBox;
-    private int page=0,selection=-1;
-    private String source="NAME";
-    private String message="Rules save automatically. First match has priority.";
+    private final RuleConfig config;
+    private EditBox pattern,rarity,weight;
+    private int page=0,selected=-1;
+    private String source="NAME", message="เลือกกฎเพื่อแก้ไข หรือกรอกข้อมูลเพื่อเพิ่มกฎใหม่";
+    private boolean error=false;
 
-    public RulesScreen(Screen parent,RuleConfig store){
-        super(Component.literal("Crate Auto Reward Settings"));
-        this.parent=parent;this.store=store;
+    public RulesScreen(Screen parent,RuleConfig config){
+        super(Component.literal("Crate Auto Reward | ตั้งค่ากฎ"));
+        this.parent=parent;this.config=config;
+    }
+    private int left(){return (this.width-Math.min(480,this.width-22))/2;}
+    private int wide(){return Math.min(480,this.width-22);}
+    private int top(){return Math.max(8,(this.height-348)/2);}
+    private int contentWidth(){return wide()-32;}
+    private static Component txt(String s){return Component.literal(s);}
+    private Button btn(String s,int x,int y,int w,int h,java.util.function.Consumer<Button> handler){
+        return this.addRenderableWidget(Button.builder(txt(s),handler).bounds(x,y,w,h).build());
     }
     @Override protected void init(){
-        int x=this.width/2-155, top=Math.max(34,this.height/2-110);
-        patternBox=this.addRenderableWidget(new EditBox(this.font,x,top+26,138,20,Component.literal("Contains")));
-        rarityBox=this.addRenderableWidget(new EditBox(this.font,x+143,top+26,90,20,Component.literal("Rarity ID")));
-        weightBox=this.addRenderableWidget(new EditBox(this.font,x+238,top+26,72,20,Component.literal("Weight")));
-        patternBox.setMaxLength(72);rarityBox.setMaxLength(32);weightBox.setMaxLength(6);
-        patternBox.setValue("STAFF");rarityBox.setValue("MYTHIC");weightBox.setValue("0.01");
-
-        this.addRenderableWidget(Button.builder(Component.literal("Match: "+source),
-            b->{source=source.equals("NAME")?"LORE":source.equals("LORE")?"MATERIAL":"NAME";rebuildWidgets();})
-            .bounds(x,top+52,104,20).build());
-        this.addRenderableWidget(Button.builder(Component.literal("Add / Update"),
-            b->submit()).bounds(x+110,top+52,102,20).build());
-        this.addRenderableWidget(Button.builder(Component.literal("Remove"),
-            b->{if(selection>=0 && selection<store.rules.size()){
-                store.rules.remove(selection);selection=-1;store.save();message="Rule removed.";rebuildWidgets();
-            }}).bounds(x+217,top+52,93,20).build());
-
-        int first=page*6;
-        for(int row=0;row<6;row++){
-            int i=first+row;
-            if(i>=store.rules.size()) break;
-            RuleConfig.Rule rule=store.rules.get(i);
-            String label=(selection==i?"> ":"  ")+(i+1)+". "+rule.info();
-            if(label.length()>54)label=label.substring(0,53)+"...";
-            final int selected=i;
-            this.addRenderableWidget(Button.builder(Component.literal(label),
-                b->{selection=selected;source=rule.source;rebuildWidgets();
-                    patternBox.setValue(rule.contains);rarityBox.setValue(rule.rarity);weightBox.setValue(rule.weight);
-                }).bounds(x,top+78+row*22,310,20).build());
+        int x=left()+16,t=top(),w=contentWidth();
+        pattern=this.addRenderableWidget(new EditBox(this.font,x,t+79,w*47/100-6,20,txt("คำที่ต้องการค้นหา")));
+        rarity=this.addRenderableWidget(new EditBox(this.font,x+w*47/100,t+79,w*29/100-6,20,txt("Rarity")));
+        weight=this.addRenderableWidget(new EditBox(this.font,x+w*76/100,t+79,w*24/100,20,txt("Weight")));
+        pattern.setMaxLength(96);
+        rarity.setMaxLength(40);
+        weight.setMaxLength(6);
+        pattern.setValue("STAFF");rarity.setValue("MYTHICAL");weight.setValue("0.01");
+        String sourceLabel=source.equals("NAME")?"ชื่อไอเทม":source.equals("LORE")?"คำอธิบาย":"ประเภทวัตถุ";
+        btn("ค้นจาก: "+sourceLabel,x,t+105,w*37/100,20,b->{
+            String p=pattern.getValue(),r=rarity.getValue(),n=weight.getValue();
+            source=source.equals("NAME")?"LORE":source.equals("LORE")?"MATERIAL":"NAME";
+            rebuildWidgets();pattern.setValue(p);rarity.setValue(r);weight.setValue(n);
+        });
+        btn(selected<0?"+ เพิ่มกฎ":"บันทึกการแก้ไข",x+w*37/100+5,t+105,w*36/100-5,20,b->save());
+        btn("ลบกฎ",x+w*74/100+5,t+105,w*26/100-5,20,b->{
+            if(selected>=0 && selected<config.rules.size()){
+                config.rules.remove(selected);selected=-1;
+                page=Math.min(page,Math.max(0,(config.rules.size()-1)/5));
+                config.save();error=false;message="ลบกฎแล้ว";rebuildWidgets();
+            }else{message="กรุณาเลือกกฎที่ต้องการลบ";error=true;}
+        });
+        btn("↑",x,t+132,33,20,b->shift(-1));
+        btn("↓",x+38,t+132,33,20,b->shift(1));
+        btn("ยกเลิกการเลือก",x+76,t+132,w-76,20,b->{
+            selected=-1;source="NAME";error=false;message="พร้อมเพิ่มกฎใหม่";rebuildWidgets();
+        });
+        int offset=page*5;
+        for(int row=0;row<5;row++){
+            int idx=offset+row;
+            if(idx>=config.rules.size()) break;
+            RuleConfig.Rule rule=config.rules.get(idx);
+            String label=String.format("%02d  %s  →  %s  /  %s",idx+1,rule.contains,rule.rarity,rule.weight);
+            if(label.length()>59)label=label.substring(0,58)+"…";
+            final int chosen=idx;
+            btn((selected==idx?"▶ ":"   ")+label,x,t+160+row*23,w,21,b->{
+                selected=chosen;source=rule.source;
+                error=false;message="แก้ไขกฎลำดับ "+(chosen+1)+" • กฎที่อยู่บนสุดสำคัญกว่า";
+                rebuildWidgets();
+                pattern.setValue(rule.contains);
+                rarity.setValue(rule.rarity);
+                weight.setValue(rule.weight);
+            });
         }
-        this.addRenderableWidget(Button.builder(Component.literal("< Prev"),
-            b->{page=Math.max(0,page-1);selection=-1;rebuildWidgets();})
-            .bounds(x,top+216,73,20).build());
-        this.addRenderableWidget(Button.builder(Component.literal("Next >"),
-            b->{page=Math.min(Math.max(0,(store.rules.size()-1)/6),page+1);selection=-1;rebuildWidgets();})
-            .bounds(x+79,top+216,73,20).build());
-        this.addRenderableWidget(Button.builder(Component.literal("Reset Defaults"),
-            b->{store.rules=RuleConfig.defaults().rules;store.save();selection=-1;page=0;message="Defaults restored.";rebuildWidgets();})
-            .bounds(x+158,top+216,152,20).build());
-
-        this.addRenderableWidget(Button.builder(Component.literal("Auto-apply rates: "+(store.autoApplyRates?"ON":"OFF")),
-            b->{store.autoApplyRates=!store.autoApplyRates;store.save();rebuildWidgets();})
-            .bounds(x,top+241,155,20).build());
-        this.addRenderableWidget(Button.builder(Component.literal("Done"),
-            b->onClose()).bounds(x+161,top+241,149,20).build());
+        btn("◀ ย้อนหน้า",x,t+280,w*27/100,20,b->{page=Math.max(0,page-1);selected=-1;rebuildWidgets();});
+        btn("หน้าถัดไป ▶",x+w*28/100,t+280,w*27/100,20,b->{
+            page=Math.min(Math.max(0,(config.rules.size()-1)/5),page+1);
+            selected=-1;rebuildWidgets();
+        });
+        btn("คืนค่าเริ่มต้น",x+w*56/100,t+280,w*44/100,20,b->{
+            config.rules=RuleConfig.defaults().rules;config.save();
+            selected=-1;page=0;error=false;message="คืนค่าเริ่มต้นแล้ว";rebuildWidgets();
+        });
+        btn((config.autoApplyRates?"✓ ":"✕ ")+"ตั้งเรทอัตโนมัติ: "+(config.autoApplyRates?"เปิด":"ปิด"),x,t+311,w*62/100,22,b->{
+            config.autoApplyRates=!config.autoApplyRates;config.save();rebuildWidgets();
+        });
+        btn("เสร็จสิ้น",x+w*63/100,t+311,w*37/100,22,b->onClose());
     }
-    private void submit(){
-        String pattern=patternBox.getValue().trim();
-        String rarity=rarityBox.getValue().trim().toUpperCase(Locale.ROOT);
-        String weight=weightBox.getValue().trim();
-        if(pattern.isEmpty() || rarity.isEmpty() || !RuleConfig.validWeight(weight)){
-            message="Enter a pattern, Rarity ID and numeric Weight (0..999999, max 6 chars).";
-            return;
+    private void shift(int direction){
+        if(selected<0 || selected>=config.rules.size()) {error=true;message="เลือกกฎก่อนจัดลำดับ";return;}
+        int target=selected+direction;
+        if(target<0 || target>=config.rules.size())return;
+        Collections.swap(config.rules,selected,target);
+        selected=target;page=target/5;config.save();
+        error=false;message="จัดลำดับแล้ว บรรทัดบนสุดจะถูกตรวจสอบก่อน";
+        rebuildWidgets();
+    }
+    private void save(){
+        String p=pattern.getValue().trim(),r=rarity.getValue().trim(),v=weight.getValue().trim();
+        if(p.isEmpty() || r.isEmpty() || !RuleConfig.validWeight(v)){
+            error=true;message="กรอกคำค้นหา Rarity และ Weight เป็นตัวเลข (เช่น 0.01)";return;
         }
-        RuleConfig.Rule rule=new RuleConfig.Rule(source,pattern,rarity,weight);
-        if(selection>=0 && selection<store.rules.size()) store.rules.set(selection,rule);
-        else {store.rules.add(rule);selection=store.rules.size()-1;page=selection/6;}
-        store.save();message="Saved. Rules run top to bottom.";rebuildWidgets();
-        patternBox.setValue(pattern);rarityBox.setValue(rarity);weightBox.setValue(weight);
+        RuleConfig.Rule rule=new RuleConfig.Rule(source,p,r,v);
+        if(selected>=0 && selected<config.rules.size())config.rules.set(selected,rule);
+        else{config.rules.add(rule);selected=config.rules.size()-1;page=selected/5;}
+        config.save();
+        error=false;message="บันทึกแล้ว: "+rule.contains+" → "+rule.rarity+" / "+rule.weight;
+        rebuildWidgets();
+        pattern.setValue(p);rarity.setValue(r);weight.setValue(v);
     }
-    @Override public void extractRenderState(GuiGraphicsExtractor graphics,int mouseX,int mouseY,float delta){
-        super.extractRenderState(graphics,mouseX,mouseY,delta);
-        int x=this.width/2-155, top=Math.max(34,this.height/2-110);
-        graphics.text(this.font,"Crate Auto Reward | Rules",x+75,top-13,0xFFFFFFFF,true);
-        graphics.text(this.font,"Name / Lore / Material",x,top+3,0xFFAAAAAA,false);
-        graphics.text(this.font,"Pattern",x,top+15,0xFFBBBBBB,false);
-        graphics.text(this.font,"Rarity ID",x+143,top+15,0xFFBBBBBB,false);
-        graphics.text(this.font,"Weight",x+238,top+15,0xFFBBBBBB,false);
-        graphics.text(this.font,message,x,top+264,0xFFE9B76C,false);
-        graphics.text(this.font,"Change keys in Options > Controls > Key Binds",x,top+278,0xFFAAAAAA,false);
+    @Override public void extractBackground(GuiGraphicsExtractor g,int mx,int my,float dt){
+        int x=left(),t=top(),w=wide();
+        g.fillGradient(0,0,width,height,0xF2151925,0xF2080B12);
+        g.fill(x-2,t-2,x+w+2,t+348,0xFFED9843);
+        g.fill(x,t,x+w,t+346,0xFF151A24);
+        g.fillGradient(x,t,x+w,t+47,0xFF303A4C,0xFF222A37);
+        g.fill(x,t+46,x+w,t+48,0xFFFFA84E);
+        g.fill(x+10,t+154,x+w-10,t+278,0xFF0D121B);
+        g.fill(x+10,t+309,x+w-10,t+310,0xFF38414E);
+    }
+    @Override public void extractRenderState(GuiGraphicsExtractor g,int mx,int my,float dt){
+        super.extractRenderState(g,mx,my,dt);
+        int x=left()+16,t=top(),w=contentWidth();
+        g.text(font,"CRATE AUTO REWARD  •  26.3",x,t+11,ORANGE,true);
+        g.text(font,"ตั้งค่าอัตรารางวัลและกฎการจับชื่อ",x,t+29,WHITE,false);
+        g.text(font,"คำที่พบในชื่อ / Lore / Material",x,t+65,0xFFCDD5E0,false);
+        g.text(font,"Rarity ID",x+w*47/100,t+65,0xFFCDD5E0,false);
+        g.text(font,"Weight",x+w*76/100,t+65,0xFFCDD5E0,false);
+        g.text(font,"รายการกฎ — เรียงจากสำคัญมากไปน้อย",x,t+144,GOLD,false);
+        g.text(font,"หน้า "+(page+1)+" / "+Math.max(1,(config.rules.size()+4)/5),x,t+302,0xFF92A2B6,false);
+        g.text(font,message,x,t+337,error?0xFFFF7878:0xFFABD2A2,false);
     }
     @Override public void onClose(){
-        store.save();
+        config.save();
         Minecraft.getInstance().gui.setScreen(parent);
     }
 }
