@@ -3,7 +3,7 @@ package com.tonkid.crateautoreward;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.GuiGraphics;
+import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 import java.util.Locale;
@@ -81,21 +81,19 @@ public class RulesScreen extends Screen {
         store.save();message="Saved. Rules run top to bottom.";rebuildWidgets();
         patternBox.setValue(pattern);rarityBox.setValue(rarity);weightBox.setValue(weight);
     }
-    @Override public void render(GuiGraphics graphics,int mouseX,int mouseY,float delta){
+    @Override public void extractRenderState(GuiGraphicsExtractor graphics,int mouseX,int mouseY,float delta){
+        super.extractRenderState(graphics,mouseX,mouseY,delta);
         int x=this.width/2-155, top=Math.max(34,this.height/2-110);
-        this.renderBackground(graphics,mouseX,mouseY,delta);
-        graphics.drawCenteredString(this.font,"Crate Auto Reward | Rules",this.width/2,top-13,0xFFFFFF);
-        graphics.drawString(this.font,"Name / Lore / Material",x,top+3,0xAAAAAA,false);
-        graphics.drawString(this.font,"Pattern",x,top+15,0xBBBBBB,false);
-        graphics.drawString(this.font,"Rarity ID",x+143,top+15,0xBBBBBB,false);
-        graphics.drawString(this.font,"Weight",x+238,top+15,0xBBBBBB,false);
-        super.render(graphics,mouseX,mouseY,delta);
-        graphics.drawCenteredString(this.font,message,this.width/2,top+264,0xE9B76C);
-        graphics.drawCenteredString(this.font,"Change Start / Settings / Stop keys in Options > Controls > Key Binds",
-            this.width/2,top+278,0xAAAAAA);
+        graphics.text(this.font,"Crate Auto Reward | Rules",x+75,top-13,0xFFFFFFFF,true);
+        graphics.text(this.font,"Name / Lore / Material",x,top+3,0xFFAAAAAA,false);
+        graphics.text(this.font,"Pattern",x,top+15,0xFFBBBBBB,false);
+        graphics.text(this.font,"Rarity ID",x+143,top+15,0xFFBBBBBB,false);
+        graphics.text(this.font,"Weight",x+238,top+15,0xFFBBBBBB,false);
+        graphics.text(this.font,message,x,top+264,0xFFE9B76C,false);
+        graphics.text(this.font,"Change keys in Options > Controls > Key Binds",x,top+278,0xFFAAAAAA,false);
     }
     @Override public void onClose(){
         store.save();
-        Minecraft.getInstance().setScreen(parent);
+        Minecraft.getInstance().gui.setScreen(parent);
     }
 }
