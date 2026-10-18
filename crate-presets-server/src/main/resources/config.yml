@@ -1,0 +1,35 @@
+# Rules are checked top to bottom; '*' applies only if nothing more specific matches.
+# Rarity IDs are lowercase. ExcellentCrates may use 'mythic' for the display 'MYTHIC'.
+rules:
+  - {source: NAME, pattern: "หมวกหลัก", rarity: mythical, weight: 8}
+  - {source: NAME, pattern: "MAIN HELMET", rarity: mythical, weight: 8}
+  - {source: NAME, pattern: "WINGS", rarity: mythical, weight: 7}
+  - {source: NAME, pattern: "ปีก", rarity: mythical, weight: 7}
+  - {source: NAME, pattern: "CROSSBOW", rarity: epic, weight: 10}
+  - {source: NAME, pattern: "หน้าไม้", rarity: epic, weight: 10}
+  - {source: NAME, pattern: "BOW", rarity: epic, weight: 10}
+  - {source: NAME, pattern: "ธนู", rarity: epic, weight: 10}
+  - {source: NAME, pattern: "SHIELD", rarity: rare, weight: 10}
+  - {source: NAME, pattern: "โล่", rarity: rare, weight: 10}
+  - {source: NAME, pattern: "PICKAXE", rarity: legendary, weight: 10}
+  - {source: NAME, pattern: "SHOVEL", rarity: legendary, weight: 10}
+  - {source: NAME, pattern: "HOE", rarity: legendary, weight: 10}
+  - {source: NAME, pattern: "TOOL", rarity: legendary, weight: 10}
+  - {source: NAME, pattern: "อุปกรณ์", rarity: legendary, weight: 10}
+  - {source: NAME, pattern: "SWORD", rarity: mythical, weight: 8}
+  - {source: NAME, pattern: "ดาบ", rarity: mythical, weight: 8}
+  - {source: NAME, pattern: "STAFF", rarity: mythical, weight: 10}
+  - {source: NAME, pattern: "DAGGER", rarity: mythical, weight: 10}
+  - {source: NAME, pattern: "SPEAR", rarity: mythical, weight: 10}
+  - {source: NAME, pattern: "TRIDENT", rarity: mythical, weight: 10}
+  - {source: NAME, pattern: "MACE", rarity: mythical, weight: 10}
+  - {source: NAME, pattern: "HAMMER", rarity: mythical, weight: 10}
+  - {source: NAME, pattern: "BATTLE AXE", rarity: mythical, weight: 10}
+  - {source: NAME, pattern: "อาวุธ", rarity: mythical, weight: 10}
+  - {source: NAME, pattern: "HELMET", rarity: legendary, weight: 10}
+  - {source: NAME, pattern: "CHESTPLATE", rarity: legendary, weight: 10}
+  - {source: NAME, pattern: "LEGGINGS", rarity: legendary, weight: 10}
+  - {source: NAME, pattern: "BOOTS", rarity: legendary, weight: 10}
+  - {source: NAME, pattern: "ARMOR", rarity: legendary, weight: 10}
+  - {source: NAME, pattern: "เกราะ", rarity: legendary, weight: 10}
+  - {source: NAME, pattern: "*", rarity: common, weight: 10}

@@ -1,10 +1,10 @@
-name: Build Fabric Crate Auto Reward 26.3
+name: Build Crate Preset Bridge 26.3
 on:
   push:
     branches: [crate-auto-reward-fabric-26-3]
     paths:
-      - 'crate-auto-reward/**'
-      - '.github/workflows/crate-auto-reward.yml'
+      - 'crate-presets-server/**'
+      - '.github/workflows/crate-presets-server.yml'
   workflow_dispatch:
 jobs:
   build:
@@ -18,9 +18,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '9.7.1'
-      - run: gradle -p crate-auto-reward build --no-daemon
+      - run: gradle -p crate-presets-server clean build --no-daemon --stacktrace
       - uses: actions/upload-artifact@v4
-        if: success()
         with:
-          name: CrateAutoReward-Fabric-26.3-v0.3.2
-          path: crate-auto-reward/build/libs/*0.3.2.jar
+          name: CratePresetBridge-26.3-server-plugin
+          path: crate-presets-server/build/libs/*.jar
