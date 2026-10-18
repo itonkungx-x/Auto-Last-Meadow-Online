@@ -38,7 +38,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
     private Phase phase = Phase.OFF;
     private int phaseTicks = 0, done = 0, skipped = 0, sourceSlot = -1;
     private ItemStack active = ItemStack.EMPTY;
-    private KeyMapping toggle, emergency, settingsKey;
+    private KeyMapping toggle, emergency, settingsKey, presetKey;
     private RuleConfig config = RuleConfig.load();
     private RuleConfig.Rule currentRule;
     private boolean[] prior = new boolean[36];
@@ -58,9 +58,13 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         settingsKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
             "key.crateautoreward.settings", InputConstants.Type.KEYBOARD,
             InputConstants.KEY_F7, KeyMapping.Category.MISC));
+        presetKey = KeyMappingHelper.registerKeyMapping(new KeyMapping(
+            "key.crateautoreward.presets", InputConstants.Type.KEYBOARD,
+            InputConstants.KEY_K, KeyMapping.Category.MISC));
         ScreenEvents.BEFORE_INIT.register((mc, screen, width, height) ->
             ScreenKeyboardEvents.beforeKeyPress(screen).register((s, key) -> {
-                if (settingsKey.matches(key)) openSettings(mc);
+                if (presetKey.matches(key)) openPresets(mc);
+                else if (settingsKey.matches(key)) openSettings(mc);
                 else if (emergency.matches(key)) stop(mc, "หยุดการทำงานแล้ว");
                 else if (toggle.matches(key)) {
                     if (phase == Phase.OFF) start(mc);
@@ -69,6 +73,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
             })
         );
         ClientTickEvents.END_CLIENT_TICK.register(mc -> {
+            while(presetKey.consumeClick()) openPresets(mc);
             while(settingsKey.consumeClick()) openSettings(mc);
             while(emergency.consumeClick()) if(phase!=Phase.OFF) stop(mc,"หยุดการทำงานแล้ว");
             while(toggle.consumeClick()) {
@@ -82,6 +87,15 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         if(phase!=Phase.OFF){say(mc,"กรุณาหยุดการทำงานก่อนเปิดตั้งค่า");return;}
         config=RuleConfig.load();
         mc.gui.setScreen(new RulesScreen(mc.gui.screen(),config));
+    }
+
+    private void openPresets(Minecraft mc){
+        if(phase!=Phase.OFF){
+            say(mc,"กรุณาหยุดการทำงานก่อนเปิดกล่องที่เซฟไว้");return;
+        }
+        if(mc.player==null){return;}
+        mc.gui.setScreen(null);
+        mc.player.connection.sendCommand("cratepreset");
     }
 
     private void start(Minecraft mc) {
