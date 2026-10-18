@@ -32,4 +32,19 @@ rules:
   - {source: NAME, pattern: "BOOTS", rarity: legendary, weight: 10}
   - {source: NAME, pattern: "ARMOR", rarity: legendary, weight: 10}
   - {source: NAME, pattern: "เกราะ", rarity: legendary, weight: 10}
+  # Fallback rules for items whose visible names do not include the category.
+  - {source: MATERIAL, pattern: "_crossbow", rarity: epic, weight: 10}
+  - {source: MATERIAL, pattern: "_bow", rarity: epic, weight: 10}
+  - {source: MATERIAL, pattern: "_shield", rarity: rare, weight: 10}
+  - {source: MATERIAL, pattern: "_sword", rarity: mythical, weight: 8}
+  - {source: MATERIAL, pattern: "_trident", rarity: mythical, weight: 10}
+  - {source: MATERIAL, pattern: "_mace", rarity: mythical, weight: 10}
+  - {source: MATERIAL, pattern: "_helmet", rarity: legendary, weight: 10}
+  - {source: MATERIAL, pattern: "_chestplate", rarity: legendary, weight: 10}
+  - {source: MATERIAL, pattern: "_leggings", rarity: legendary, weight: 10}
+  - {source: MATERIAL, pattern: "_boots", rarity: legendary, weight: 10}
+  - {source: MATERIAL, pattern: "_pickaxe", rarity: legendary, weight: 10}
+  - {source: MATERIAL, pattern: "_axe", rarity: legendary, weight: 10}
+  - {source: MATERIAL, pattern: "_shovel", rarity: legendary, weight: 10}
+  - {source: MATERIAL, pattern: "_hoe", rarity: legendary, weight: 10}
   - {source: NAME, pattern: "*", rarity: common, weight: 10}
