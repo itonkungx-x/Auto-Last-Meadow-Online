@@ -37,7 +37,7 @@ public class RuleConfig {
 
     public static RuleConfig defaults() {
         RuleConfig config=new RuleConfig();
-        config.rules.add(new Rule("NAME","STAFF","MYTHIC","0.01"));
+        config.rules.add(new Rule("NAME","STAFF","MYTHICAL","0.01"));
         config.rules.add(new Rule("NAME","SWORD","RARE","0.10"));
         config.rules.add(new Rule("NAME","HELMET","RARE","0.01"));
         config.rules.add(new Rule("NAME","CHESTPLATE","RARE","0.01"));
@@ -76,17 +76,19 @@ public class RuleConfig {
         StringBuilder lore=new StringBuilder();
         ItemLore list=stack.get(DataComponents.LORE);
         if(list!=null) for(var component:list.lines()) lore.append(normalize(component.getString())).append(" ");
+        Rule fallback=null;
         for(Rule rule:rules){
             if(rule.contains==null || rule.source==null || rule.rarity==null || rule.weight==null) continue;
+            if(normalize(rule.contains).equals("*")){if(fallback==null)fallback=rule;continue;}
             String input=switch(rule.source.toUpperCase(Locale.ROOT)){
                 case "LORE" -> lore.toString();
                 case "MATERIAL" -> material;
                 default -> name;
             };
             String term=normalize(rule.contains);
-            if(term.equals("*") || (!term.isEmpty() && input.contains(term))) return rule.copy();
+            if(!term.isEmpty() && input.contains(term)) return rule.copy();
         }
-        return null;
+        return fallback==null?null:fallback.copy();
     }
     // Small-caps in custom item names are not ordinary ASCII uppercase/lowercase.
     // Unicode NFKC alone does not fold all of these glyphs.
