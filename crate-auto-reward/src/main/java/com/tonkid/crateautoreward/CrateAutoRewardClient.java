@@ -121,6 +121,12 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         ClientPresets.SavedPreset preset=saves.selected();
         usingPreset=preset!=null;
         if(preset!=null){
+            // Freeze the rules captured with this box, independent of later edits.
+            if(preset.rateRules!=null && !preset.rateRules.isEmpty()){
+                config.rules=new ArrayList<>();
+                for(RuleConfig.Rule rule:preset.rateRules)config.rules.add(rule.copy());
+                config.autoApplyRates=preset.autoApplyRates;
+            }
             ClientPresets.ReplayCheck check=saves.check(mc,preset);
             if(!check.missing.isEmpty()){
                 say(mc,"กล่อง '"+preset.name+"' ยังมีของไม่ครบ ขาด "+check.missing.size()+
