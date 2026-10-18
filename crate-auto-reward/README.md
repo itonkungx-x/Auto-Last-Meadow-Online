@@ -23,7 +23,7 @@ Settings save automatically to `config/crateautoreward-rules.json`.
 
 Open **Crate Rewards**, press F6. For each unique inventory item, the mod picks it up, clicks the Anvil in slot 42, then clicks **Item Reward** on the creation dialog.
 
-If **Auto-apply rates** is enabled and a rule matches, it looks for a *new* reward slot among the 36 shown. It opens that reward's editor and then its **Rarity & Weight** control at slot 12 (GLISTERING_MELON_SLICE). It only attempts to edit a rate dialog if it recognizes *one* EditBox and a CycleButton rarity selector, with an explicit confirm button. It STOPS instead of guessing on unsupported dialog widgets or layouts. Depending on the server version, manual Rarity & Weight editing may still be required. The mod cannot directly edit ExcellentCrates server configuration from the client.
+If **Auto-apply rates** is enabled and a rule matches, it looks for a *new* reward slot among the 36 shown. It opens that reward's editor and then its **Rarity & Weight** control at slot 12 (GLISTERING_MELON_SLICE). It edits the **Weight** field then cycles the **Rarity:** button (including ordinary Buttons displaying Small Caps) until the requested rarity is visible, and presses the **✔ Ok** confirmation. `MYTHICAL` is recognized as the server's `MYTHIC` label. It stops rather than clicking unspecified controls, and verifies the server-returned lore before claiming success. It STOPS instead of guessing on unsupported dialog widgets or layouts. Depending on the server version, manual Rarity & Weight editing may still be required. The mod cannot directly edit ExcellentCrates server configuration from the client.
 
 ## Safety
 
