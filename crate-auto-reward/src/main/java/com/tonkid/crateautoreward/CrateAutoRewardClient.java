@@ -29,6 +29,8 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Base64;
+import java.nio.charset.StandardCharsets;
 
 public final class CrateAutoRewardClient implements ClientModInitializer {
     private static final int ANVIL_SLOT = 42;
@@ -47,6 +49,8 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
     private int examinedPages = 0;
     private long pageFingerprint = 0;
     private String expectedRewardName = "";
+    private static final ArrayDeque<String> syncCommands = new ArrayDeque<>();
+    private static int syncDelay = 0;
 
     @Override public void onInitializeClient() {
         toggle = KeyMappingHelper.registerKeyMapping(new KeyMapping(
@@ -79,6 +83,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
             while(toggle.consumeClick()) {
                 if(phase==Phase.OFF) start(mc); else stop(mc,"หยุดการทำงานแล้ว");
             }
+            syncTick(mc);
             tick(mc);
         });
     }
@@ -96,6 +101,29 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         if(mc.player==null){return;}
         mc.gui.setScreen(null);
         mc.player.connection.sendCommand("cratepreset");
+    }
+
+    public static void queueRuleSync(Minecraft mc,RuleConfig config){
+        if(mc.player==null)return;
+        syncCommands.clear();
+        syncCommands.add("cratepreset sync begin");
+        for(RuleConfig.Rule rule:config.rules){
+            if(rule.contains==null || rule.source==null || rule.rarity==null || rule.weight==null)continue;
+            String raw=rule.source+"\\u001F"+rule.contains+"\\u001F"+rule.rarity+"\\u001F"+rule.weight;
+            syncCommands.add("cratepreset sync add "+
+                Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8)));
+        }
+        syncCommands.add("cratepreset sync commit");
+        syncDelay=0;
+        mc.player.sendSystemMessage(Component.literal("[Crate Auto Reward] กำลังส่งกฎ "+
+            config.rules.size()+" รายการไปยังเซิร์ฟเวอร์..."));
+    }
+    private static void syncTick(Minecraft mc){
+        if(syncCommands.isEmpty())return;
+        if(mc.player==null){syncCommands.clear();return;}
+        if(syncDelay-- > 0)return;
+        mc.player.connection.sendCommand(syncCommands.removeFirst());
+        syncDelay=4;
     }
 
     private void start(Minecraft mc) {
