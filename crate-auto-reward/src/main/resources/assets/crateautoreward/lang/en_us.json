@@ -1,4 +1,5 @@
 {
-  "key.crateautoreward.toggle": "Start/stop Crate Auto Reward",
-  "key.crateautoreward.stop": "Emergency stop Crate Auto Reward"
+  "key.crateautoreward.toggle": "Crate Auto Reward: Start or Stop",
+  "key.crateautoreward.stop": "Crate Auto Reward: Emergency Stop",
+  "key.crateautoreward.settings": "Crate Auto Reward: Rules and Rates"
 }
