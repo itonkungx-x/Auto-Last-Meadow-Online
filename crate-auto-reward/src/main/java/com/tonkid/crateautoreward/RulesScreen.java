@@ -26,7 +26,7 @@ public final class RulesScreen extends Screen {
     private int top(){return Math.max(8,(this.height-348)/2);}
     private int contentWidth(){return wide()-32;}
     private static Component txt(String s){return Component.literal(s);}
-    private Button btn(String s,int x,int y,int w,int h,java.util.function.Consumer<Button> handler){
+    private Button btn(String s,int x,int y,int w,int h,Button.OnPress handler){
         return this.addRenderableWidget(Button.builder(txt(s),handler).bounds(x,y,w,h).build());
     }
     @Override protected void init(){
