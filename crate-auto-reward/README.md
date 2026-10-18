@@ -1,50 +1,34 @@
-# Crate Auto Reward — Fabric 26.3
+# Crate Auto Reward v0.5.0 (Minecraft 26.3 / Fabric)
 
-A client-side Minecraft mod for the ExcellentCrates reward creation GUI. Uses Minecraft 26.3, Fabric API and Java 25.
+## No server plugin needed
+Install only the Fabric mod locally. Server-side ExcellentCrates remains unchanged.
+
+## Separate MMO / SMP profiles
+Press **F7**, select MMO or SMP at the top right. Data is isolated by **server address + chosen MMO/SMP**. This protects same-name presets and rate rules from leaking between worlds. If the server is a proxy and MMO/SMP share the same public IP, change the profile manually when switching backend; a client-only mod cannot always detect the underlying backend.
+
+## Permanent local presets
+Press **K** or **F7 > กล่องที่เซฟ**. Enter a name such as สีเหลือง, then choose **บันทึกจากกระเป๋า** to snapshot unique inventory items with complete Minecraft item components and stack counts. Select a saved preset from the list. Open Crate Rewards and press F6 to replay only this saved set, in the chosen server profile. If even one original item is missing or changed (including count), the mod refuses to start and reports the missing item. Choose **ใช้ไอเทมทั้งหมด (ไม่ใช้ Preset)** to return to the previous whole-inventory behavior.
+
+Storage: `config/crateautoreward/servers.json` plus `config/crateautoreward/profiles/<hash>/rules.json` and `presets.json`. Each preset has a `presets.json.bak` backup after changes.
+
+**Client-only limitation:** The game client cannot create server-authorized custom items from a snapshot. Presets remember what items to use, but the items must actually exist in the player's current inventory before replay. If you need fully automatic item restoration with empty inventory, only a server plugin/admin API can legitimately do it.
 
 ## Keybinds
+- F6: Start / stop
+- F7: Rules and MMO/SMP profile picker
+- F8: Emergency stop
+- K: Saved box presets
 
-You can remap the keys from **F7 → ตั้งปุ่มลัด**; this opens Minecraft's built-in key binding editor, so it works on laptops without needing Fn/F-keys. Rebinding persists in Minecraft options.
+All keys are rebindable via **Options > Controls > Key Binds** (including notebook-friendly alternatives).
 
-Minecraft **Options -> Controls -> Key Binds** -> Miscellaneous:
-- **F6** Start/stop one pass over distinct inventory item stacks.
-- **F7** Open the rule editor (open it outside the crate GUI).
-- **F8** Emergency stop.
+## Defaults
+- WINGS/ปีก: mythical, weight 7
+- หมวกหลัก: mythical, weight 8
+- SWORD/ดาบ: mythical, weight 8
+- Other weapons (including STAFF): mythical, weight 10
+- Bow / crossbow: epic, weight 10
+- Shield: rare, weight 10
+- General armor: legendary, weight 10
+- Tools: legendary, weight 10
 
-All keys are standard remappable Minecraft key bindings, saved in Minecraft's normal options.
-
-## In-game rules
-
-Open F7. Pick `NAME` (display name), `LORE`, or `MATERIAL`. Enter keyword, exact rarity ID and decimal weight, then Add / Update. Click a row to edit it. Rules are evaluated from top to bottom; `*` acts as a fallback. Small-caps glyphs such as `ꜱᴛᴀꜰꜰ` are normalized for matching `STAFF`.
-
-Settings save automatically to `config/crateautoreward-rules.json`.
-
-## Crate operation
-
-Open **Crate Rewards**, press F6. For each unique inventory item, the mod picks it up, clicks the Anvil in slot 42, then clicks **Item Reward** on the creation dialog.
-
-If **Auto-apply rates** is enabled and a rule matches, it looks for a *new* reward slot among the 36 shown. It opens that reward's editor and then its **Rarity & Weight** control at slot 12 (GLISTERING_MELON_SLICE). It edits the **Weight** field then cycles the **Rarity:** button (including ordinary Buttons displaying Small Caps) until the requested rarity is visible, and presses the **✔ Ok** confirmation. `MYTHICAL` is recognized as the server's `MYTHIC` label. It stops rather than clicking unspecified controls, and verifies the server-returned lore before claiming success. It STOPS instead of guessing on unsupported dialog widgets or layouts. Depending on the server version, manual Rarity & Weight editing may still be required. The mod cannot directly edit ExcellentCrates server configuration from the client.
-
-## Safety
-
-- Not tested on live production crates. Test with one expendable item first and verify the rarity/weight on the server.
-- Does not avoid items added in prior sessions; duplicate prevention is limited to the current pass.
-- If the Crate Rewards page already has 36 reward slots filled, auto-rate editing may stop because it cannot safely identify a new reward from the page.
-- Press F8 if the interface changes unexpectedly. Check whether the mouse cursor is holding an item before closing the menu.
-- This project is provided in an isolated GitHub branch without modifying the original application's default branch.
-
-
-## Saved crate presets (v0.4.0)
-
-To retain the original Minecraft custom item data across sessions even when the items are no longer in the player's inventory, install **CratePresetBridge-26.3** on the Paper/Purpur server alongside ExcellentCrates 7.x. The client mod alone cannot manufacture item stacks or change server rewards from a saved snapshot.
-
-In-game server admin commands:
-- `/cratepreset`: open saved preset library with colored shulker icons.
-- `/cratepreset create สีเหลือง`: create and open the yellow preset editor.
-- Shift-click each inventory item to **copy** it into the preset slots without consuming the source.
-- Click **บันทึกกล่องนี้**. Server persists exact Bukkit ItemStack data under `plugins/CratePresetBridge/presets.yml`, keeping a `.bak` backup on each save.
-- `/cratepreset target <crateId>`: select the ExcellentCrates destination.
-- In saved preset library, **right-click** a box to apply its captured items and Rarity/Weight to the target crate. Reapplying updates rewards with stable IDs instead of inserting duplicates.
-- From F7 mod rules, click **ซิงก์กฎไปเซิร์ฟเวอร์** (server admin access required). Rules sync atomically on completion.
-
-In the client mod, press remappable **K** to open saved presets, or F7 then **กล่องที่เซฟ**. The plugin requires the `cratepreset.admin` permission (op by default). Rarity IDs must be defined in ExcellentCrates, e.g. `mythical` (or server alias `mythic`), `legendary`, `epic`, `rare` and `common`. For any compatibility changes to external custom-item plugins, re-test a stored preset first; the archive preserves item data, not third-party plugin executable behavior.
+NAME match takes priority over MATERIAL. Small Caps are normalized. Actual ExcellentCrates rarity IDs vary by server. The built-in GUI click flow for Rarity/Weight is best-effort and must be tested with one disposable item before bulk use.
