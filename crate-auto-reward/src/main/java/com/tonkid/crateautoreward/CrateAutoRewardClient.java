@@ -30,7 +30,7 @@ import java.util.Locale;
 
 public final class CrateAutoRewardClient implements ClientModInitializer {
     private static final int ANVIL_SLOT = 42;
-    private enum Phase { OFF, NEXT, PICKUP, TYPE, RETURN, OPTIONS, OPEN_WEIGHT, SET_WEIGHT, RETURN_OPTIONS, RETURN_LIST }
+    private enum Phase { OFF, NEXT, PICKUP, TYPE, RETURN, LOCATE_PAGE, WAIT_PAGE, OPTIONS, OPEN_WEIGHT, SET_WEIGHT, RETURN_OPTIONS, RETURN_LIST }
     private final ArrayDeque<ItemStack> pending = new ArrayDeque<>();
     private final List<ItemStack> seen = new ArrayList<>();
     private Phase phase = Phase.OFF;
@@ -42,6 +42,9 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
     private boolean[] prior = new boolean[36];
     private boolean edited = false;
     private int cycles = 0;
+    private int examinedPages = 0;
+    private long pageFingerprint = 0;
+    private String expectedRewardName = "";
 
     @Override public void onInitializeClient() {
         toggle = KeyMappingHelper.registerKeyMapping(new KeyMapping(
@@ -112,6 +115,8 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
             case PICKUP -> pickup(mc);
             case TYPE -> clickItemReward(mc);
             case RETURN -> returned(mc);
+            case LOCATE_PAGE -> locatePage(mc);
+            case WAIT_PAGE -> waitPage(mc);
             case OPTIONS -> options(mc);
             case OPEN_WEIGHT -> openWeight(mc);
             case SET_WEIGHT -> setWeight(mc);
@@ -132,6 +137,8 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         }
         if (pending.isEmpty()) { stop(mc,"Finished "+done+" rewards. Skipped "+skipped+" duplicate stacks."); return; }
         active=pending.peekFirst(); sourceSlot=-1;
+        expectedRewardName=RuleConfig.normalize(active.getHoverName().getString());
+        examinedPages=0;
         currentRule=config.match(active);
         for(int i=0;i<36;i++) prior[i]=!menu.getSlot(i).getItem().isEmpty();
         for (int i=0;i<menu.slots.size();i++) {
@@ -227,30 +234,77 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
     }
 
     private void returned(Minecraft mc) {
-        if(phaseTicks>250){stop(mc,"Crate Rewards did not return.");return;}
+        if(phaseTicks>250){stop(mc,"เมนูรางวัลไม่กลับมา กรุณาตรวจสอบ");return;}
         if(!rewards(mc.gui.screen()) || phaseTicks<12)return;
         AbstractContainerMenu m=menu(mc);
         if(m==null)return;
         if(!m.getCarried().isEmpty()){
             if(!ItemStack.isSameItemSameComponents(m.getCarried(),active) ||
                 sourceSlot<0 || sourceSlot>=m.slots.size() || !m.getSlot(sourceSlot).getItem().isEmpty()){
-                stop(mc,"Item still held; return manually.");return;
+                stop(mc,"ไอเทมยังอยู่บนเมาส์ กรุณาคืนไอเทมก่อน");return;
             }
             clickSlot(mc,m,sourceSlot);phaseTicks=0;return;
         }
         if(config.autoApplyRates && currentRule!=null){
-            for(int i=0;i<36;i++){
-                if(!prior[i] && !m.getSlot(i).getItem().isEmpty()){
-                    say(mc,"Configuring rarity="+currentRule.rarity+", weight="+currentRule.weight);
-                    clickSlot(mc,m,i);
-                    phase=Phase.OPTIONS;phaseTicks=0;return;
-                }
-            }
-            if(phaseTicks<100)return;
-            stop(mc,"Reward created, but item slot not identified. Rate needs manual edit.");
+            phase=Phase.LOCATE_PAGE;phaseTicks=0;examinedPages=0;
+            say(mc,"กำลังค้นหา Reward: "+active.getHoverName().getString());
             return;
         }
         complete(mc);
+    }
+    // ExcellentCrates keeps newly created rewards at the end of its paged list.
+    private void locatePage(Minecraft mc){
+        AbstractContainerMenu m=menu(mc);
+        if(!rewards(mc.gui.screen()) || m==null || m.slots.size()<45){stop(mc,"เมนู Reward เปลี่ยนขณะกำลังค้นหา");return;}
+        if(phaseTicks<12)return;
+        if(examinedPages>200){stop(mc,"จำนวนหน้ารางวัลเกินขีดจำกัด");return;}
+        if(m.getSlot(41).getItem().isEmpty()){selectNewest(mc,m);return;}
+        pageFingerprint=fingerprint(m);
+        clickSlot(mc,m,41);
+        phase=Phase.WAIT_PAGE;phaseTicks=0;
+    }
+    private void waitPage(Minecraft mc){
+        AbstractContainerMenu m=menu(mc);
+        if(!rewards(mc.gui.screen()) || m==null){stop(mc,"เมนูเปลี่ยนขณะเลื่อนหน้า");return;}
+        if(phaseTicks<14)return;
+        if(fingerprint(m)!=pageFingerprint){
+            examinedPages++;phase=Phase.LOCATE_PAGE;phaseTicks=0;return;
+        }
+        if(phaseTicks>=36)selectNewest(mc,m);
+    }
+    private static long fingerprint(AbstractContainerMenu m){
+        long result=1469598103934665603L;
+        for(int i=0;i<36;i++){
+            ItemStack item=m.getSlot(i).getItem();
+            result=31*result+(item.isEmpty()?0:item.getHoverName().getString().hashCode());
+            result=31*result+(item.isEmpty()?0:item.getItem().toString().hashCode());
+        }
+        return result;
+    }
+    private void selectNewest(Minecraft mc,AbstractContainerMenu m){
+        int slot=-1;
+        for(int i=0;i<36;i++)if(!m.getSlot(i).getItem().isEmpty())slot=i;
+        if(slot<0){stop(mc,"ไม่พบรางวัลหน้าสุดท้าย");return;}
+        String last=RuleConfig.normalize(m.getSlot(slot).getItem().getHoverName().getString());
+        if(!matchesName(last,expectedRewardName)){
+            int found=-1;
+            for(int i=0;i<36;i++){
+                ItemStack item=m.getSlot(i).getItem();if(item.isEmpty())continue;
+                String name=RuleConfig.normalize(item.getHoverName().getString());
+                if(matchesName(name,expectedRewardName)){
+                    if(found!=-1){stop(mc,"ชื่อรางวัลซ้ำ ไม่สามารถเลือกได้อย่างปลอดภัย");return;}
+                    found=i;
+                }
+            }
+            if(found<0){stop(mc,"ชื่อรางวัลใหม่ไม่ตรง: "+last+" / "+expectedRewardName);return;}
+            slot=found;
+        }
+        say(mc,"พบ Reward หน้าที่ "+(examinedPages+1)+" ช่อง "+slot+" | "+currentRule.rarity+" / "+currentRule.weight);
+        clickSlot(mc,m,slot);phase=Phase.OPTIONS;phaseTicks=0;
+    }
+    private static boolean matchesName(String shown,String expected){
+        if(shown.isEmpty()||expected.isEmpty())return false;
+        return shown.equals(expected)||shown.endsWith(expected)||expected.endsWith(shown);
     }
     private void options(Minecraft mc){
         if(phaseTicks>140){stop(mc,"Reward Settings not found. Rate needs manual edit.");return;}
@@ -338,7 +392,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
     private void complete(Minecraft mc){
         pending.removeFirst();done++;
         active=ItemStack.EMPTY;sourceSlot=-1;currentRule=null;
-        say(mc,"Created "+done+" reward(s); "+pending.size()+" remaining.");
+        say(mc,"สร้างสำเร็จ "+done+" รายการ | เหลือ "+pending.size()+" รายการ");
         phase=Phase.NEXT;phaseTicks=0;
     }
     private static void clickWidget(Minecraft mc,Screen screen,AbstractWidget widget){
