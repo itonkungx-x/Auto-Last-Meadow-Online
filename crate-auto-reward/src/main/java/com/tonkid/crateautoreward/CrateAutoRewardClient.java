@@ -109,7 +109,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         syncCommands.add("cratepreset sync begin");
         for(RuleConfig.Rule rule:config.rules){
             if(rule.contains==null || rule.source==null || rule.rarity==null || rule.weight==null)continue;
-            String raw=rule.source+"\\u001F"+rule.contains+"\\u001F"+rule.rarity+"\\u001F"+rule.weight;
+            String raw=rule.source+((char)31)+rule.contains+((char)31)+rule.rarity+((char)31)+rule.weight;
             syncCommands.add("cratepreset sync add "+
                 Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8)));
         }
