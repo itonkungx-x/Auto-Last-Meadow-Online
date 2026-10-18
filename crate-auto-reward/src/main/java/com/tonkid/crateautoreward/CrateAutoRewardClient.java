@@ -29,8 +29,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.Base64;
-import java.nio.charset.StandardCharsets;
+
 
 public final class CrateAutoRewardClient implements ClientModInitializer {
     private static final int ANVIL_SLOT = 42;
@@ -49,8 +48,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
     private int examinedPages = 0;
     private long pageFingerprint = 0;
     private String expectedRewardName = "";
-    private static final ArrayDeque<String> syncCommands = new ArrayDeque<>();
-    private static int syncDelay = 0;
+    private String activeServerProfile = "";
 
     @Override public void onInitializeClient() {
         toggle = KeyMappingHelper.registerKeyMapping(new KeyMapping(
@@ -83,7 +81,6 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
             while(toggle.consumeClick()) {
                 if(phase==Phase.OFF) start(mc); else stop(mc,"หยุดการทำงานแล้ว");
             }
-            syncTick(mc);
             tick(mc);
         });
     }
@@ -99,34 +96,14 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
             say(mc,"กรุณาหยุดการทำงานก่อนเปิดกล่องที่เซฟไว้");return;
         }
         if(mc.player==null){return;}
-        mc.gui.setScreen(null);
-        mc.player.connection.sendCommand("cratepreset");
-    }
-
-    public static void queueRuleSync(Minecraft mc,RuleConfig config){
-        if(mc.player==null)return;
-        syncCommands.clear();
-        syncCommands.add("cratepreset sync begin");
-        for(RuleConfig.Rule rule:config.rules){
-            if(rule.contains==null || rule.source==null || rule.rarity==null || rule.weight==null)continue;
-            String raw=rule.source+((char)31)+rule.contains+((char)31)+rule.rarity+((char)31)+rule.weight;
-            syncCommands.add("cratepreset sync add "+
-                Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8)));
-        }
-        syncCommands.add("cratepreset sync commit");
-        syncDelay=0;
-        mc.player.sendSystemMessage(Component.literal("[Crate Auto Reward] กำลังส่งกฎ "+
-            config.rules.size()+" รายการไปยังเซิร์ฟเวอร์..."));
-    }
-    private static void syncTick(Minecraft mc){
-        if(syncCommands.isEmpty())return;
-        if(mc.player==null){syncCommands.clear();return;}
-        if(syncDelay-- > 0)return;
-        mc.player.connection.sendCommand(syncCommands.removeFirst());
-        syncDelay=4;
+        mc.gui.setScreen(new PresetScreen(mc.gui.screen()));
     }
 
     private void start(Minecraft mc) {
+        if (!ServerProfiles.instance().hasSelection()) {
+            say(mc,"ยังไม่ได้เลือกเซิร์ฟเวอร์ MMO/SMP โปรดเปิดหน้าตั้งค่าและเลือกก่อน");
+            return;
+        }
         config=RuleConfig.load();
         AbstractContainerMenu menu = menu(mc);
         if (mc.player == null || mc.gameMode == null || !rewards(mc.gui.screen()) || menu == null) {
@@ -138,20 +115,38 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
             say(mc, "ไม่พบ Anvil ช่อง 42 หรือมีไอเทมติดเมาส์");
             return;
         }
-        pending.clear(); seen.clear(); done=0; skipped=0; sourceSlot=-1; active=ItemStack.EMPTY;
-        for (Slot slot : menu.slots) {
-            ItemStack item = slot.getItem();
-            if (slot.container != mc.player.getInventory() || item.isEmpty()) continue;
-            if (seen.stream().anyMatch(old -> ItemStack.isSameItemSameComponents(old,item))) skipped++;
-            else {seen.add(item.copy()); pending.addLast(item.copy());}
+        pending.clear();seen.clear();done=0;skipped=0;sourceSlot=-1;active=ItemStack.EMPTY;
+        ClientPresets saves=ClientPresets.load();
+        ClientPresets.SavedPreset preset=saves.selected();
+        if(preset!=null){
+            ClientPresets.ReplayCheck check=saves.check(mc,preset);
+            if(!check.missing.isEmpty()){
+                say(mc,"กล่อง '"+preset.name+"' ยังมีของไม่ครบ ขาด "+check.missing.size()+
+                    " รายการ (เช่น "+check.missing.get(0)+") จึงไม่เริ่มอัตโนมัติ");
+                return;
+            }
+            for(ItemStack stack:check.found)pending.addLast(stack.copy());
+            say(mc,"เลือก Preset: "+preset.name+" | "+pending.size()+" ไอเทม");
+        }else{
+            for(Slot slot:menu.slots){
+                ItemStack item=slot.getItem();
+                if(slot.container!=mc.player.getInventory()||item.isEmpty())continue;
+                if(seen.stream().anyMatch(old->ItemStack.isSameItemSameComponents(old,item)))skipped++;
+                else{seen.add(item.copy());pending.addLast(item.copy());}
+            }
         }
-        if (pending.isEmpty()) { say(mc,"ไม่พบไอเทมในกระเป๋า"); return; }
+        if(pending.isEmpty()){say(mc,"ไม่มีไอเทมให้เพิ่มรางวัล");return;}
+        activeServerProfile=ServerProfiles.instance().key();
         phase = Phase.NEXT; phaseTicks = 0;
         say(mc,"เริ่มดำเนินการ "+pending.size()+" ชนิด ("+skipped+" รายการซ้ำถูกข้าม) กดปุ่มหยุดเมื่อจำเป็น");
     }
 
     private void tick(Minecraft mc) {
         if (phase == Phase.OFF) return;
+        if (!activeServerProfile.equals(ServerProfiles.instance().key())) {
+            stop(mc,"ตรวจพบการเปลี่ยนเซิร์ฟเวอร์หรือโปรไฟล์ จึงหยุดเพื่อป้องกันข้อมูลคละกัน");
+            return;
+        }
         phaseTicks++;
         if (mc.player == null || mc.gameMode == null) { stop(mc,"ขาดการเชื่อมต่อ"); return; }
         switch(phase) {
@@ -542,6 +537,6 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         phase=Phase.OFF;pending.clear();active=ItemStack.EMPTY;sourceSlot=-1;say(mc,reason);
     }
     private static void say(Minecraft mc,String msg) {
-        if (mc.player!=null) mc.player.sendSystemMessage(Component.literal("[Crate Auto Reward] "+msg));
+        if (mc.player!=null) mc.player.sendSystemMessage(Component.literal("[Crate Auto Reward / "+ServerProfiles.instance().selected()+"] "+msg));
     }
 }
