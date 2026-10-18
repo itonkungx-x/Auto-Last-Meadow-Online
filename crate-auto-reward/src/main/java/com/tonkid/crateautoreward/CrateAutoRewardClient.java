@@ -327,66 +327,116 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         if(!(title.contains("weight") || title.contains("rari")))return;
         edited=false;cycles=0;phase=Phase.SET_WEIGHT;phaseTicks=0;
     }
-    private void setWeight(Minecraft mc){
+    // ExcellentCrates 7 / 26.3 renders the single-option selector as an ordinary
+    // clickable button labelled "Rarity: COMMON", not necessarily CycleButton.
+    // On each click the server dialog cycles to the next configured rarity.
+    private void setWeight(Minecraft mc) {
         Screen screen=mc.gui.screen();
         if(screen==null){stop(mc,"หน้าตั้งค่าเรทปิดโดยไม่คาดคิด");return;}
-        if(phaseTicks>170){stop(mc,"ไม่รู้จักช่องกรอกเรท กรุณาตั้งค่าเอง");return;}
+        if(phaseTicks>220){stop(mc,"ตั้งเรทไม่สำเร็จ: หมดเวลารอหน้า Rarity & Weight");return;}
         String title=RuleConfig.normalize(screen.getTitle().getString());
         if(!title.contains("weight") && !title.contains("rari")){
-            if(phaseTicks>25)stop(mc,"ไม่ใช่หน้าตั้งค่าเรทที่คาดไว้");
+            if(phaseTicks>25)stop(mc,"หน้าจอไม่ใช่ Rarity & Weight");
             return;
         }
         List<AbstractWidget> widgets=new ArrayList<>();
         for(var child:screen.children())
             if(child instanceof AbstractWidget w && w.visible && w.active)widgets.add(w);
+
+        // First set exactly one numeric weight field.
+        List<EditBox> fields=new ArrayList<>();
+        for(AbstractWidget w:widgets)if(w instanceof EditBox e)fields.add(e);
+        if(fields.size()!=1){
+            if(phaseTicks>50)stop(mc,"ไม่พบช่อง Weight เพียงช่องเดียว จึงหยุดเพื่อความปลอดภัย");
+            return;
+        }
+        EditBox weightInput=fields.get(0);
         if(!edited){
-            List<EditBox> fields=new ArrayList<>();
-            for(AbstractWidget w:widgets)if(w instanceof EditBox e)fields.add(e);
-            if(fields.size()!=1){
-                if(phaseTicks>35)stop(mc,"ไม่พบช่อง Weight กรุณาตั้งค่าเอง");
-                return;
-            }
-            fields.get(0).setValue(currentRule.weight);
-            edited=true;phaseTicks=0;return;
+            weightInput.setValue(currentRule.weight);
+            edited=true;phaseTicks=0;
+            say(mc,"กรอก Weight: "+currentRule.weight);
+            return;
         }
-        CycleButton<?> dropdown=null;
-        boolean matched=false;
+        if(!weightInput.getValue().equals(currentRule.weight)){
+            stop(mc,"Weight ในหน้าต่างไม่ตรงกับกฎ กรุณาตรวจสอบ");return;
+        }
+
+        // Locate the label directly, e.g. "Rarity: COMMON" or "Rarity: ᴍʏᴛʜɪᴄ".
+        // Only click an unambiguous selector; never blindly click a dialog area.
+        AbstractWidget rarityButton=null;
         for(AbstractWidget w:widgets){
-            if(w instanceof CycleButton<?> c){
-                dropdown=c;
-                if(RuleConfig.normalize(w.getMessage().getString())
-                    .contains(RuleConfig.normalize(currentRule.rarity)))matched=true;
-            }
-        }
-        if(!matched){
-            if(dropdown==null){
-                if(phaseTicks>35){
-                    StringBuilder found=new StringBuilder();
-                    for(AbstractWidget w:widgets){
-                        if(found.length()>130)break;
-                        found.append(w.getClass().getSimpleName()).append("=")
-                            .append(w.getMessage().getString()).append("; ");
-                    }
-                    stop(mc,"ไม่พบตัวเลือก Rarity | "+found);
-                }
-                return;
-            }
-            if(cycles++>=24){stop(mc,"ไม่มี Rarity นี้ในเมนูของเซิร์ฟเวอร์");return;}
-            clickWidget(mc,screen,dropdown);phaseTicks=0;return;
-        }
-        if(phaseTicks<7)return;
-        for(AbstractWidget w:widgets){
-            if(!(w instanceof Button))continue;
+            if(w instanceof EditBox)continue;
             String label=RuleConfig.normalize(w.getMessage().getString());
-            if(label.equals("ok") || label.equals("done") ||
-               label.contains("confirm") || label.contains("save")){
-                clickWidget(mc,screen,w);
-                say(mc,"ส่งค่าตั้งเรทแล้ว "+currentRule.rarity+" / "+currentRule.weight+".");
-                phase=Phase.RETURN_OPTIONS;phaseTicks=0;return;
+            if(label.startsWith("rarity:") || label.startsWith("rarity ") ||
+               label.startsWith("rarity：")){
+                if(rarityButton!=null){stop(mc,"พบปุ่ม Rarity หลายปุ่ม กรุณาตรวจสอบ");return;}
+                rarityButton=w;
             }
         }
-        if(phaseTicks>50)stop(mc,"ไม่พบปุ่มยืนยัน กรุณาตั้งค่าเอง");
+        if(rarityButton==null){
+            if(phaseTicks>45){
+                StringBuilder labels=new StringBuilder();
+                for(AbstractWidget w:widgets){
+                    if(labels.length()>140)break;
+                    labels.append(w.getClass().getSimpleName()).append(" [")
+                        .append(w.getMessage().getString()).append("] ");
+                }
+                stop(mc,"ไม่พบปุ่ม Rarity: "+labels);
+            }
+            return;
+        }
+        String shown=RuleConfig.normalize(rarityButton.getMessage().getString());
+        String current=rarityName(shown.substring(Math.min(shown.length(),shown.indexOf(":")>=0?shown.indexOf(":")+1:7)).trim());
+        String desired=rarityName(currentRule.rarity);
+        if(!current.equals(desired)){
+            if(phaseTicks<9)return; // allow server/client to update the button label
+            if(cycles>=24){
+                stop(mc,"ไม่พบระดับ "+currentRule.rarity+" ในรายการ Rarity ของเซิร์ฟเวอร์");return;
+            }
+            String beforeClick=rarityButton.getMessage().getString();
+            if(!clickWidget(mc,screen,rarityButton)){
+                stop(mc,"คลิกปุ่ม Rarity ไม่สำเร็จ");return;
+            }
+            cycles++;
+            phaseTicks=0;
+            say(mc,"เปลี่ยน Rarity: "+beforeClick+" → เป้าหมาย "+currentRule.rarity+" ("+cycles+"/24)");
+            return;
+        }
+
+        // A delay separates final selector input from dialog submission.
+        if(phaseTicks<10)return;
+        AbstractWidget confirm=null;
+        for(AbstractWidget w:widgets){
+            if(!(w instanceof Button) || w==rarityButton)continue;
+            String label=RuleConfig.normalize(w.getMessage().getString()).trim();
+            // The screenshot says "✔ Ok" rather than plain "Ok".
+            boolean ok=label.equals("ok") || label.endsWith(" ok") ||
+                label.equals("done") || label.endsWith(" done") ||
+                label.contains("confirm") || label.contains("save") ||
+                label.equals("ยืนยัน") || label.endsWith(" ยืนยัน");
+            if(ok){
+                if(confirm!=null){stop(mc,"พบปุ่มยืนยันซ้ำ กรุณาตรวจสอบ");return;}
+                confirm=w;
+            }
+        }
+        if(confirm==null){
+            if(phaseTicks>55)stop(mc,"ไม่พบปุ่ม OK สำหรับบันทึกเรท");
+            return;
+        }
+        if(!clickWidget(mc,screen,confirm)){
+            stop(mc,"คลิกปุ่ม OK ไม่สำเร็จ กรุณาตรวจสอบ");return;
+        }
+        say(mc,"กด OK แล้ว | Rarity "+currentRule.rarity+" / Weight "+currentRule.weight);
+        phase=Phase.RETURN_OPTIONS;phaseTicks=0;
     }
+
+    private static String rarityName(String text){
+        String value=RuleConfig.normalize(text).replaceAll("[^a-z0-9_]", "");
+        // The display name MYTHIC in ExcellentCrates can correspond to a
+        // user's category label MYTHICAL. Treat these as equivalent for matching.
+        return value.equals("mythical") ? "mythic" : value;
+    }
+
     private void backOptions(Minecraft mc){
         if(phaseTicks>140){stop(mc,"เมนู Reward Options ไม่กลับมา");return;}
         AbstractContainerMenu m=menu(mc);
@@ -419,13 +469,17 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         say(mc,"สร้างสำเร็จ "+done+" รายการ | เหลือ "+pending.size()+" รายการ");
         phase=Phase.NEXT;phaseTicks=0;
     }
-    private static void clickWidget(Minecraft mc,Screen screen,AbstractWidget widget){
+    private static boolean clickWidget(Minecraft mc,Screen screen,AbstractWidget widget){
         MouseButtonInfo info=new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT,0);
         MouseButtonEvent event=new MouseButtonEvent(widget.getX()+widget.getWidth()/2.0,
             widget.getY()+widget.getHeight()/2.0,info);
         boolean handled=screen.mouseClicked(event,false);
         if(mc.gui.screen()==screen)screen.mouseReleased(event);
-        if(!handled && widget instanceof Button b)b.onPress(info);
+        if(!handled && widget instanceof Button b){
+            b.onPress(info);
+            handled=true;
+        }
+        return handled;
     }
 
     private static void clickSlot(Minecraft mc, AbstractContainerMenu menu, int slot) {
