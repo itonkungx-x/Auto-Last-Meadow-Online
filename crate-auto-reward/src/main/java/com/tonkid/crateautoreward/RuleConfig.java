@@ -17,7 +17,7 @@ import java.util.Locale;
 
 public class RuleConfig {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    private static final Path FILE = FabricLoader.getInstance().getConfigDir().resolve("crateautoreward-rules.json");
+    private static Path file() { return ServerProfiles.instance().activePath("rules.json"); }
 
     public static final class Rule {
         public String source="NAME";
@@ -97,11 +97,13 @@ public class RuleConfig {
     }
 
     public static RuleConfig load() {
-        if (!Files.exists(FILE)) {
+        if (!ServerProfiles.instance().hasSelection()) return defaults();
+        Path file=file();
+        if (!Files.exists(file)) {
             RuleConfig defaults=defaults();defaults.save();return defaults;
         }
         try {
-            RuleConfig data=GSON.fromJson(Files.readString(FILE,StandardCharsets.UTF_8),RuleConfig.class);
+            RuleConfig data=GSON.fromJson(Files.readString(file,StandardCharsets.UTF_8),RuleConfig.class);
             if (data==null || data.rules==null) return defaults();
             data.rules.removeIf(rule->rule==null);
             return data;
@@ -111,9 +113,11 @@ public class RuleConfig {
         }
     }
     public void save(){
+        if (!ServerProfiles.instance().hasSelection()) return;
         try {
-            Files.createDirectories(FILE.getParent());
-            Files.writeString(FILE,GSON.toJson(this),StandardCharsets.UTF_8);
+            Path file=file();
+            Files.createDirectories(file.getParent());
+            Files.writeString(file,GSON.toJson(this),StandardCharsets.UTF_8);
         } catch(IOException e) {
             System.err.println("[CrateAutoReward] Failed to save rules: "+e);
         }
