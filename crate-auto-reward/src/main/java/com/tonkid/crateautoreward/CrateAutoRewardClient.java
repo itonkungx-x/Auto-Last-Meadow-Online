@@ -444,17 +444,21 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
         if(!m.getSlot(12).getItem().is(Items.GLISTERING_MELON_SLICE))return;
         // Verify both server-returned rate values before reporting success.
         ItemLore lore=m.getSlot(12).getItem().get(DataComponents.LORE);
-        if(lore!=null && !lore.lines().isEmpty()){
-            StringBuilder text=new StringBuilder();
-            for(var line:lore.lines())text.append(RuleConfig.normalize(line.getString())).append(" ");
-            String value=text.toString();
-            String rarity=RuleConfig.normalize(currentRule.rarity);
-            String actualRarity=rarity.equals("mythic")?"mythical":rarity;
-            if(!value.contains(actualRarity) || !value.contains(currentRule.weight)){
-                stop(mc,"เซิร์ฟเวอร์ยังไม่ได้บันทึกเรทที่ขอ ("+
-                    currentRule.rarity+" / "+currentRule.weight+"). กรุณาตรวจสอบ Reward Settings.");
-                return;
-            }
+        if(lore==null || lore.lines().isEmpty()){
+            if(phaseTicks>60)stop(mc,"อ่านค่า Rarity & Weight ที่เซิร์ฟเวอร์บันทึกไม่ได้");
+            return;
+        }
+        StringBuilder text=new StringBuilder();
+        for(var line:lore.lines())text.append(RuleConfig.normalize(line.getString())).append(" ");
+        String serverLore=text.toString();
+        String wantedRarity=rarityName(currentRule.rarity);
+        String formattedWeight=currentRule.weight;
+        // Some users call the MYTHIC rarity MYTHICAL; the server label is MYTHIC.
+        if(!serverLore.contains(wantedRarity) || !serverLore.contains(formattedWeight)){
+            if(phaseTicks<40)return; // wait for the server refresh after clicking OK
+            stop(mc,"เซิร์ฟเวอร์ยังไม่บันทึก Rarity/Weight ("+
+                currentRule.rarity+" / "+currentRule.weight+"). ได้รับ: "+serverLore);
+            return;
         }
         clickSlot(mc,m,49);phase=Phase.RETURN_LIST;phaseTicks=0;
     }
