@@ -29,11 +29,13 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.lang.reflect.Field;
+import java.util.LinkedHashSet;
 
 
 public final class CrateAutoRewardClient implements ClientModInitializer {
     private static final int ANVIL_SLOT = 42;
-    private enum Phase { OFF, NEXT, PICKUP, TYPE, RETURN, LOCATE_PAGE, WAIT_PAGE, OPTIONS, OPEN_WEIGHT, SET_WEIGHT, RETURN_OPTIONS, RETURN_LIST }
+    private enum Phase { OFF, NEXT, PICKUP, TYPE, WAIT_CREATE, RETURN, LOCATE_PAGE, WAIT_PAGE, OPTIONS, OPEN_WEIGHT, SET_WEIGHT, RETURN_OPTIONS, RETURN_LIST }
     private final ArrayDeque<ItemStack> pending = new ArrayDeque<>();
     private final List<ItemStack> seen = new ArrayList<>();
     private Phase phase = Phase.OFF;
@@ -50,6 +52,8 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
     private String expectedRewardName = "";
     private String activeServerProfile = "";
     private boolean usingPreset = false;
+    private int creationAttempts = 0;
+    private Screen creationScreen = null;
 
     @Override public void onInitializeClient() {
         toggle = KeyMappingHelper.registerKeyMapping(new KeyMapping(
@@ -161,6 +165,7 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
             case NEXT -> next(mc);
             case PICKUP -> pickup(mc);
             case TYPE -> clickItemReward(mc);
+            case WAIT_CREATE -> awaitCreation(mc);
             case RETURN -> returned(mc);
             case LOCATE_PAGE -> locatePage(mc);
             case WAIT_PAGE -> waitPage(mc);
@@ -212,73 +217,138 @@ public final class CrateAutoRewardClient implements ClientModInitializer {
             }
             // Deliberately click ON the ANVIL, not an empty reward slot.
             clickSlot(mc,menu,ANVIL_SLOT);
-            phase=Phase.TYPE;phaseTicks=0;
+            phase=Phase.TYPE;phaseTicks=0;creationAttempts=0;creationScreen=null;
         } else if (phaseTicks > 60) stop(mc,"หมดเวลารอการหยิบไอเทม");
     }
 
-    private void clickItemReward(Minecraft mc) {
+    private static boolean isCreationDialog(Screen screen) {
+        if(screen==null)return false;
+        String title=RuleConfig.normalize(screen.getTitle().getString());
+        return title.contains("reward") && title.contains("creation");
+    }
+
+    private static List<AbstractWidget> availableWidgets(Screen screen){
+        LinkedHashSet<AbstractWidget> all=new LinkedHashSet<>();
+        for(var listener:screen.children()){
+            if(listener instanceof AbstractWidget widget && widget.visible && widget.active)all.add(widget);
+        }
+        // Some versions of Minecraft DialogScreen register renderable controls
+        // separately from input listeners. Read that list as a second source.
+        try{
+            Field field=Screen.class.getDeclaredField("renderables");
+            field.setAccessible(true);
+            Object renderables=field.get(screen);
+            if(renderables instanceof Iterable<?> values){
+                for(Object value:values){
+                    if(value instanceof AbstractWidget widget && widget.visible && widget.active)all.add(widget);
+                }
+            }
+        }catch(ReflectiveOperationException | SecurityException ignored){}
+        return new ArrayList<>(all);
+    }
+
+    private static AbstractWidget findItemButton(Screen screen,List<AbstractWidget> controls){
+        AbstractWidget exact=null;
+        for(AbstractWidget w:controls){
+            if(!(w instanceof Button))continue;
+            String label=RuleConfig.normalize(w.getMessage().getString());
+            if(label.contains("item reward")){
+                if(exact!=null)return null; // Ambiguous buttons: do not guess.
+                exact=w;
+            }
+        }
+        if(exact!=null)return exact;
+
+        // The two centered primary buttons are on the same row. Match geometry
+        // rather than the text component (which may be part of a dialog wrapper).
+        List<Button> buttons=new ArrayList<>();
+        for(AbstractWidget w:controls){
+            if(!(w instanceof Button b))continue;
+            String label=RuleConfig.normalize(b.getMessage().getString());
+            if(label.contains("back")||label.contains("กลับ")||label.contains("command reward"))continue;
+            if(b.getX()<0||b.getX()+b.getWidth()>screen.width||
+               b.getY()<screen.height/6||b.getY()>screen.height*3/4||b.getWidth()<70)continue;
+            buttons.add(b);
+        }
+        // Only choose a left/right pair when the layout clearly provides it.
+        for(Button a:buttons)for(Button b:buttons){
+            if(a==b || Math.abs(a.getY()-b.getY())>6)continue;
+            if(a.getX()+a.getWidth()<=b.getX()+12 && a.getX()<screen.width/2){
+                return a;
+            }
+        }
+        return null;
+    }
+
+    // Clicks through Minecraft's Screen API: no real mouse cursor is moved.
+    private static boolean clickAt(Minecraft mc,Screen screen,double x,double y){
+        MouseButtonInfo mouse=new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT,0);
+        MouseButtonEvent event=new MouseButtonEvent(x,y,mouse);
+        boolean accepted=screen.mouseClicked(event,false);
+        if(mc.gui.screen()==screen)screen.mouseReleased(event);
+        return accepted;
+    }
+
+    private static final double[][] CREATION_COORDINATES={
+        // Client renderings of the same ExcellentCrates dialog place the left
+        // action at either ~39% or ~28% of the GUI height.
+        {0.38,0.39},{0.42,0.285},{0.38,0.36},{0.38,0.415},
+        {0.42,0.30},{0.38,0.335},{0.42,0.265},{0.38,0.44}
+    };
+
+    private void clickItemReward(Minecraft mc){
         Screen screen=mc.gui.screen();
-        if (screen==null || rewards(screen) || phaseTicks<7) return;
-        if (phaseTicks>200) {
-            stop(mc,"รอหน้าต่าง Item Reward นานเกินไป: "+screen.getClass().getSimpleName());return;
+        if(screen==null){if(phaseTicks>60)stop(mc,"ไม่พบหน้าต่างสร้าง Reward");return;}
+        if(rewards(screen)){ // Already returned by the server.
+            phase=Phase.RETURN;phaseTicks=0;return;
         }
+        if(!isCreationDialog(screen)){
+            if(phaseTicks>110)stop(mc,"ไม่พบหน้า REWARD » Creation: "+screen.getClass().getSimpleName());
+            return;
+        }
+        if(phaseTicks<8)return;
+        creationScreen=screen;
+        List<AbstractWidget> widgets=availableWidgets(screen);
+        AbstractWidget target=findItemButton(screen,widgets);
+        boolean accepted;
+        if(target!=null && creationAttempts==0){
+            accepted=clickAt(mc,screen,target.getX()+target.getWidth()/2.0,
+                target.getY()+target.getHeight()/2.0);
+            say(mc,"ทดลองกด Item Reward ตามตำแหน่งปุ่ม GUI");
+        }else{
+            int index=target!=null?creationAttempts-1:creationAttempts;
+            if(index>=CREATION_COORDINATES.length){
+                stop(mc,"ไม่พบปุ่ม Item Reward | ลองคลิกด้วยตนเองและแจ้งภาพหน้าจอ");return;
+            }
+            double[] xy=CREATION_COORDINATES[index];
+            accepted=clickAt(mc,screen,screen.width*xy[0],screen.height*xy[1]);
+            say(mc,"ทดลองกดปุ่ม Item Reward ("+(creationAttempts+1)+")");
+        }
+        creationAttempts++;
+        // IMPORTANT: accepted from mouseClicked DOES NOT prove reward creation.
+        // It may only mean a dialog container consumed the mouse event.
+        phase=Phase.WAIT_CREATE;
+        phaseTicks=0;
+    }
 
-        List<AbstractWidget> widgets=new ArrayList<>();
-        for (var child:screen.children()) {
-            if (child instanceof AbstractWidget w && w.visible && w.active) widgets.add(w);
+    private void awaitCreation(Minecraft mc){
+        Screen screen=mc.gui.screen();
+        if(rewards(screen)){
+            say(mc,"สร้าง Item Reward แล้ว หน้า Crate Rewards กลับมา");
+            phase=Phase.RETURN;phaseTicks=0;return;
         }
-        AbstractWidget target=null;
-        for (AbstractWidget widget:widgets) {
-            String label=widget.getMessage().getString().replaceAll("§.", "").toLowerCase(Locale.ROOT).trim();
-            if (label.contains("item reward")) { target=widget;break; }
+        if(screen!=null && !isCreationDialog(screen) && phaseTicks>75){
+            stop(mc,"หน้าจอเปลี่ยนแล้วแต่ไม่ใช่ Crate Rewards: "+screen.getClass().getSimpleName());
+            return;
         }
-
-        String title=screen.getTitle().getString().toLowerCase(Locale.ROOT);
-        boolean expectedDialog=title.contains("reward") && title.contains("creation");
-        if (target==null && expectedDialog) {
-            List<AbstractWidget> primary=new ArrayList<>();
-            for(AbstractWidget widget:widgets) {
-                if (widget instanceof Button &&
-                    widget.getWidth()>75 && widget.getY()>screen.height/9 &&
-                    widget.getY()<screen.height*3/4 &&
-                    !widget.getMessage().getString().equalsIgnoreCase("Back")) primary.add(widget);
+        if(phaseTicks>36 && isCreationDialog(screen)){
+            // Never claim success while the creation dialog is still visible.
+            if(creationAttempts>=CREATION_COORDINATES.length+1){
+                stop(mc,"ปุ่ม Item Reward ไม่ตอบสนอง กรุณากดด้วยตนเอง");return;
             }
-            primary.sort(Comparator.comparingInt(AbstractWidget::getY).thenComparingInt(AbstractWidget::getX));
-            if (primary.size()>=2 && Math.abs(primary.get(0).getY()-primary.get(1).getY())<24) {
-                target=primary.get(0).getX()<primary.get(1).getX()?primary.get(0):primary.get(1);
-            }
+            phase=Phase.TYPE;phaseTicks=8;
         }
-
-        if (target != null) {
-            MouseButtonInfo button=new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT,0);
-            MouseButtonEvent event=new MouseButtonEvent(target.getX()+target.getWidth()/2.0,
-                                                       target.getY()+target.getHeight()/2.0,button);
-            boolean clicked=screen.mouseClicked(event,false);
-            if (mc.gui.screen()==screen) screen.mouseReleased(event);
-            if (!clicked && target instanceof Button b) {
-                b.onPress(button);
-                clicked=true;
-            }
-            if (clicked) {
-                say(mc,"กด Item Reward แล้ว กำลังรอหน้า Crate Rewards");
-                phase=Phase.RETURN;phaseTicks=0;return;
-            }
-        }
-
-        // Extremely narrow fallback: only the confirmed Reward Creation dialog.
-        // Click its left action button at the same relative position as in screenshot.
-        if (target==null && expectedDialog && phaseTicks>=35) {
-            MouseButtonInfo button=new MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT,0);
-            MouseButtonEvent event=new MouseButtonEvent(screen.width*0.42,screen.height*0.285,button);
-            if (screen.mouseClicked(event,false)) {
-                if (mc.gui.screen()==screen) screen.mouseReleased(event);
-                say(mc,"ส่งการคลิก Item Reward แบบสำรองแล้ว");
-                phase=Phase.RETURN;phaseTicks=0;
-            } else if (phaseTicks==35) {
-                say(mc,"ไม่พบปุ่ม Item Reward | หน้าจอ="+screen.getClass().getSimpleName()+
-                    ", widgets="+widgets.size()+".");
-            }
-        }
+        if(phaseTicks>160)stop(mc,"ส่งการคลิกแล้ว แต่ไม่พบหน้า Crate Rewards ภายในเวลาที่กำหนด");
     }
 
     private void returned(Minecraft mc) {
